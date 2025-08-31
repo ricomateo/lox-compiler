@@ -13,6 +13,7 @@ pub struct Chunk {
     // TODO: consider storing a vector of u8
     chunk: Vec<OpCode>,
     constants: Vec<Value>,
+    lines: Vec<usize>,
 }
 
 impl Chunk {
@@ -20,11 +21,13 @@ impl Chunk {
         Self {
             chunk: Vec::new(),
             constants: Vec::new(),
+            lines: Vec::new(),
         }
     }
 
-    pub fn write(&mut self, byte: OpCode) {
+    pub fn write(&mut self, byte: OpCode, line: usize) {
         self.chunk.push(byte);
+        self.lines.push(line);
     }
 
     pub fn add_constant(&mut self, value: Value) -> usize {
@@ -44,6 +47,14 @@ impl Chunk {
     fn disassemble_instruction(&self, offset: usize) -> usize {
         print!("{:04} ", offset);
         let instruction = &self.chunk[offset];
+        let same_line_as_previous_opcode =
+            offset > 0 && self.lines[offset] == self.lines[offset - 1];
+        if same_line_as_previous_opcode {
+            print!("   | ");
+        } else {
+            print!(" {} ", self.lines[offset]);
+        }
+
         match instruction {
             OpCode::Return => self.simple_instruction("OP_RETURN", offset),
             OpCode::Constant(constant_index) => {

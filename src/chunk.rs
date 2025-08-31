@@ -45,13 +45,23 @@ impl Chunk {
         print!("{:04} ", offset);
         let instruction = &self.chunk[offset];
         match instruction {
-            OpCode::Return => Chunk::simple_instruction("OP_RETURN", offset),
-            OpCode::Constant(index) => 0 // TODO: implement constant instruction
+            OpCode::Return => self.simple_instruction("OP_RETURN", offset),
+            OpCode::Constant(constant_index) => {
+                self.constant_instruction("OP_CONSTANT", offset, *constant_index)
+            }
         }
     }
 
-    fn simple_instruction(name: &str, offset: usize) -> usize {
+    fn simple_instruction(&self, name: &str, offset: usize) -> usize {
         println!("{name}");
+        offset + 1
+    }
+
+    fn constant_instruction(&self, name: &str, offset: usize, constant_index: usize) -> usize {
+        let Value::Number(value) = &self.constants[constant_index];
+        println!("{:<16} {:>4} '{}'", name, constant_index, value);
+        // In the book, this function returns offset + 2 because the constant index is stored separately from Opcode::Constant
+        // In our implementation, we combine them into a single element (Opcode::Constant(constant_index)), so we return offset + 1
         offset + 1
     }
 }

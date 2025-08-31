@@ -27,6 +27,11 @@ impl Chunk {
         self.chunk.push(byte);
     }
 
+    pub fn add_constant(&mut self, value: Value) -> usize {
+        self.constants.push(value);
+        self.constants.len() - 1
+    }
+
     pub fn disassemble(&self, name: &str) {
         println!("== {name} ==");
         let count = self.chunk.len();

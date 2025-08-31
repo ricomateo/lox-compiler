@@ -1,4 +1,9 @@
 #[derive(Debug)]
+pub enum Value {
+    Number(f64),
+}
+
+#[derive(Debug)]
 pub enum OpCode {
     Return,
 }
@@ -6,11 +11,15 @@ pub enum OpCode {
 pub struct Chunk {
     // TODO: consider storing a vector of u8
     chunk: Vec<OpCode>,
+    constants: Vec<Value>,
 }
 
 impl Chunk {
     pub fn new() -> Self {
-        Self { chunk: Vec::new() }
+        Self {
+            chunk: Vec::new(),
+            constants: Vec::new(),
+        }
     }
 
     pub fn write(&mut self, byte: OpCode) {

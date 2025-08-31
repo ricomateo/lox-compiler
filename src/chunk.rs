@@ -5,6 +5,7 @@ pub enum Value {
 
 #[derive(Debug)]
 pub enum OpCode {
+    Constant(usize),
     Return,
 }
 
@@ -40,6 +41,7 @@ impl Chunk {
         let instruction = &self.chunk[offset];
         match instruction {
             OpCode::Return => Chunk::simple_instruction("OP_RETURN", offset),
+            OpCode::Constant(index) => 0 // TODO: implement constant instruction
         }
     }
 

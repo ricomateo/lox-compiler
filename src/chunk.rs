@@ -55,7 +55,7 @@ impl Chunk {
         self.constants[constant_index].clone()
     }
 
-    fn disassemble_instruction(&self, offset: usize) -> usize {
+    pub fn disassemble_instruction(&self, offset: usize) -> usize {
         print!("{:04} ", offset);
         let instruction = &self.chunk[offset];
         let same_line_as_previous_opcode =

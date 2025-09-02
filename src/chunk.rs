@@ -7,6 +7,7 @@ pub enum Value {
 pub enum OpCode {
     Constant(usize),
     Return,
+    Negate,
 }
 
 #[derive(Debug)]
@@ -71,6 +72,7 @@ impl Chunk {
             OpCode::Constant(constant_index) => {
                 self.constant_instruction("OP_CONSTANT", offset, *constant_index)
             }
+            OpCode::Negate => self.simple_instruction("OP_NEGATE", offset),
         }
     }
 

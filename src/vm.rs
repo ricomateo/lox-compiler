@@ -32,8 +32,18 @@ impl Vm {
                     let constant = self.chunk.constant_at(constant_index);
                     self.stack.push(constant);
                 }
+                OpCode::Negate => {
+                    let value = self.stack.pop().unwrap();
+                    match value {
+                        Value::Number(value) => {
+                            let negated_value = Value::Number(-value);
+                            self.stack.push(negated_value);
+                        }
+                    }
+                }
                 OpCode::Return => {
-                    self.stack.pop().unwrap();
+                    let value = self.stack.pop().unwrap();
+                    println!("{value:?}");
                     return Ok(());
                 }
             }

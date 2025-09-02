@@ -1,4 +1,7 @@
-use lox_compiler::chunk::{Chunk, OpCode, Value};
+use lox_compiler::{
+    chunk::{Chunk, OpCode, Value},
+    vm::Vm,
+};
 
 fn main() {
     let mut chunk = Chunk::new();
@@ -7,5 +10,7 @@ fn main() {
     chunk.write(OpCode::Constant(constant_index), line);
     chunk.write(OpCode::Return, line);
 
-    chunk.disassemble("test chunk");
+    let mut vm = Vm::new(chunk);
+    vm.interpret().unwrap();
+    // chunk.disassemble("test chunk");
 }

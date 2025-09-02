@@ -1,14 +1,15 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Number(f64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OpCode {
     Constant(usize),
     Return,
 }
 
+#[derive(Debug)]
 pub struct Chunk {
     // TODO: consider storing a vector of u8
     chunk: Vec<OpCode>,
@@ -42,6 +43,16 @@ impl Chunk {
         while offset < count {
             offset = self.disassemble_instruction(offset);
         }
+    }
+
+    pub fn instruction_at(&self, index: usize) -> OpCode {
+        // TODO: consider using .get() and returning an Option<OpCode>
+        self.chunk[index].clone()
+    }
+
+    pub fn constant_at(&self, constant_index: usize) -> Value {
+        // TODO: consider using .get() and returning an Option<OpCode>
+        self.constants[constant_index].clone()
     }
 
     fn disassemble_instruction(&self, offset: usize) -> usize {

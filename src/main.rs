@@ -6,7 +6,7 @@ fn main() {
     if args.len() == 1 {
         repl();
     } else if args.len() == 2 {
-        // TODO: Implement file reading and execution
+        run_file(&args[1]);
     } else {
         eprintln!("Usage: rlox [path]");
         std::process::exit(64);
@@ -29,4 +29,14 @@ fn repl() {
 
         // TODO: Implement interpret function
     }
+}
+
+fn run_file(path: &str) {
+    let _source = std::fs::read_to_string(path)
+        .unwrap_or_else(|_| {
+            eprintln!("Could not read file: {}", path);
+            std::process::exit(65);
+        });
+
+    // TODO: Implement interpret function
 }

@@ -1,11 +1,12 @@
-use lox_compiler::chunk::{Chunk, OpCode, Value};
-
 fn main() {
-    let mut chunk = Chunk::new();
-    let constant_index = chunk.add_constant(Value::Number(1.2));
-    let line = 123;
-    chunk.write(OpCode::Constant(constant_index), line);
-    chunk.write(OpCode::Return, line);
+    let args: Vec<String> = std::env::args().collect();
 
-    chunk.disassemble("test chunk");
+    if args.len() == 1 {
+        // TODO: Implement REPL
+    } else if args.len() == 2 {
+        // TODO: Implement file reading and execution
+    } else {
+        eprintln!("Usage: rlox [path]");
+        std::process::exit(64);
+    }
 }

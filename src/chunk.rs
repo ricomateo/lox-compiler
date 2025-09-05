@@ -16,7 +16,6 @@ pub enum OpCode {
 
 #[derive(Debug)]
 pub struct Chunk {
-    // TODO: consider storing a vector of u8
     chunk: Vec<OpCode>,
     constants: Vec<Value>,
     lines: Vec<usize>,
@@ -51,12 +50,10 @@ impl Chunk {
     }
 
     pub fn instruction_at(&self, index: usize) -> OpCode {
-        // TODO: consider using .get() and returning an Option<OpCode>
         self.chunk[index].clone()
     }
 
     pub fn constant_at(&self, constant_index: usize) -> Value {
-        // TODO: consider using .get() and returning an Option<OpCode>
         self.constants[constant_index].clone()
     }
 

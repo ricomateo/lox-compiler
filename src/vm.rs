@@ -48,26 +48,26 @@ impl Vm {
                 }
                 // TODO: extract repeated code and remove unwraps
                 OpCode::Add => {
-                    let Value::Number(a) = self.stack.pop().unwrap();
                     let Value::Number(b) = self.stack.pop().unwrap();
+                    let Value::Number(a) = self.stack.pop().unwrap();
                     let result = Value::Number(a + b);
                     self.stack.push(result);
                 }
                 OpCode::Subtract => {
-                    let Value::Number(a) = self.stack.pop().unwrap();
                     let Value::Number(b) = self.stack.pop().unwrap();
+                    let Value::Number(a) = self.stack.pop().unwrap();
                     let result = Value::Number(a - b);
                     self.stack.push(result);
                 }
                 OpCode::Multiply => {
-                    let Value::Number(a) = self.stack.pop().unwrap();
                     let Value::Number(b) = self.stack.pop().unwrap();
+                    let Value::Number(a) = self.stack.pop().unwrap();
                     let result = Value::Number(a * b);
                     self.stack.push(result);
                 }
                 OpCode::Divide => {
-                    let Value::Number(a) = self.stack.pop().unwrap();
                     let Value::Number(b) = self.stack.pop().unwrap();
+                    let Value::Number(a) = self.stack.pop().unwrap();
                     let result = Value::Number(a / b);
                     self.stack.push(result);
                 }

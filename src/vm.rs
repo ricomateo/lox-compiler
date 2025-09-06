@@ -22,7 +22,7 @@ impl Vm {
 
     pub fn run(&mut self) -> Result<(), VmError> {
         loop {
-            if let Ok(_) = std::env::var("DEBUG") {
+            if std::env::var("DEBUG_TRACE").is_ok() {
                 self.debug_trace();
             };
             let instruction = self.chunk.instruction_at(self.instruction_pointer);

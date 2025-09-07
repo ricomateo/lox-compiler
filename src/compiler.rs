@@ -15,7 +15,7 @@ pub fn compile(source: &str) {
             print!("   | ");
         }
 
-        println!("{:2?} '{}'", token.kind as u8, &scanner.source[token.start..token.start + token.lenght]);
+        println!("{:2?} '{}'", token.kind as u8, &scanner.source[token.start..token.start + token.length]);
 
         if token.kind == TokenType::Eof {
             break;

@@ -61,7 +61,7 @@ pub enum TokenType {
 pub struct Token {
     pub kind: TokenType,
     pub start: usize,
-    pub lenght: usize,
+    pub length: usize,
     pub line: usize,
 }
 
@@ -76,10 +76,33 @@ impl<'a> Scanner<'a> {
     }
 
     pub fn scan_token(&mut self) -> Token {
+        self.start = self.current;
+
+        if self.is_at_end() {
+            return self.make_token(TokenType::Eof);
+        }
+
+        self.error_token("Unexpected token")
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.current >= self.source.len()
+    }
+
+    fn make_token(&self, kind: TokenType) -> Token {
         Token {
-            kind: TokenType::Eof,
-            start: 0,
-            lenght: 0,
+            kind,
+            start: self.start,
+            length: self.current - self.start,
+            line: self.line,
+        }
+    }
+
+    fn error_token(&self, message: &'a str) -> Token {
+        Token {
+            kind: TokenType::Error,
+            start: self.start,
+            length: message.len(),
             line: self.line,
         }
     }

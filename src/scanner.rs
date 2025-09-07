@@ -76,6 +76,8 @@ impl<'a> Scanner<'a> {
     }
 
     pub fn scan_token(&mut self) -> Token {
+        self.skip_whitespace();
+
         self.start = self.current;
 
         if self.is_at_end() {
@@ -171,5 +173,26 @@ impl<'a> Scanner<'a> {
 
         self.current += c.len_utf8();
         true
+    }
+
+    fn skip_whitespace(&mut self) {
+        loop {
+            let c = self.peek();
+
+            match c {
+                ' ' | '\r' | '\t' => {
+                    self.advance();
+                }
+                '\n' => {
+                    self.line += 1;
+                    self.advance();
+                }
+                _ => return,
+            }
+        }
+    }
+
+    fn peek(&self) -> char {
+        self.source[self.current..].chars().next().unwrap()
     }
 }

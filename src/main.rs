@@ -1,10 +1,18 @@
 use std::io::{self, Write};
 
+use lox_compiler::{
+    chunk::Chunk,
+    vm::Vm,
+};
+
 fn main() {
+    let chunk = Chunk::new();
+    let vm = Vm::new(chunk);
+
     let args: Vec<String> = std::env::args().collect();
 
     if args.len() == 1 {
-        repl();
+        repl(vm);
     } else if args.len() == 2 {
         run_file(&args[1]);
     } else {
@@ -13,7 +21,7 @@ fn main() {
     }
 }
 
-fn repl() {
+fn repl(mut vm: Vm) {
     let stdin = io::stdin();
 
     loop {
@@ -27,7 +35,7 @@ fn repl() {
             break;
         }
 
-        // TODO: interpret(&line);
+        let _ = vm.interpret(&line);
     }
 }
 

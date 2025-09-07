@@ -1,5 +1,4 @@
 use std::io::{self, Write};
-use lox_compiler::vm::interpret;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -28,16 +27,16 @@ fn repl() {
             break;
         }
 
-        interpret(&line);
+        // TODO: interpret(&line);
     }
 }
 
 fn run_file(path: &str) {
-    let source = std::fs::read_to_string(path)
+    let _source = std::fs::read_to_string(path)
         .unwrap_or_else(|_| {
             eprintln!("Could not read file: {}", path);
             std::process::exit(65);
         });
 
-    interpret(&source);
+    // TODO: interpret(&source);
 }

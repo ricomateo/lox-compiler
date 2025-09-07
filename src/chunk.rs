@@ -1,16 +1,21 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Number(f64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OpCode {
     Constant(usize),
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Negate,
     Return,
 }
 
+#[derive(Debug)]
 pub struct Chunk {
-    // TODO: consider storing a vector of u8
     chunk: Vec<OpCode>,
     constants: Vec<Value>,
     lines: Vec<usize>,
@@ -44,7 +49,15 @@ impl Chunk {
         }
     }
 
-    fn disassemble_instruction(&self, offset: usize) -> usize {
+    pub fn instruction_at(&self, index: usize) -> OpCode {
+        self.chunk[index].clone()
+    }
+
+    pub fn constant_at(&self, constant_index: usize) -> Value {
+        self.constants[constant_index].clone()
+    }
+
+    pub fn disassemble_instruction(&self, offset: usize) -> usize {
         print!("{:04} ", offset);
         let instruction = &self.chunk[offset];
         let same_line_as_previous_opcode =
@@ -60,6 +73,11 @@ impl Chunk {
             OpCode::Constant(constant_index) => {
                 self.constant_instruction("OP_CONSTANT", offset, *constant_index)
             }
+            OpCode::Negate => self.simple_instruction("OP_NEGATE", offset),
+            OpCode::Add => self.simple_instruction("OP_ADD", offset),
+            OpCode::Subtract => self.simple_instruction("OP_SUBTRACT", offset),
+            OpCode::Multiply => self.simple_instruction("OP_MULTIPLY", offset),
+            OpCode::Divide => self.simple_instruction("OP_DIVIDE", offset),
         }
     }
 

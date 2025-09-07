@@ -187,6 +187,15 @@ impl<'a> Scanner<'a> {
                     self.line += 1;
                     self.advance();
                 }
+                '/' => {
+                    if self.peek_next() == '/' {
+                        while !self.is_at_end() && self.peek() != '\n' {
+                            self.advance();
+                        }
+                    } else {
+                        return;
+                    }
+                }
                 _ => return,
             }
         }
@@ -194,5 +203,11 @@ impl<'a> Scanner<'a> {
 
     fn peek(&self) -> char {
         self.source[self.current..].chars().next().unwrap()
+    }
+
+    fn peek_next(&self) -> char {
+        let mut iter = self.source[self.current..].chars();
+        iter.next();
+        iter.next().unwrap_or('\0')
     }
 }

@@ -82,7 +82,52 @@ impl<'a> Scanner<'a> {
             return self.make_token(TokenType::Eof);
         }
 
-        self.error_token("Unexpected token")
+        let c = self.advance();
+
+        match c {
+            // Single-character tokens
+            '(' => self.make_token(TokenType::LeftParen),
+            ')' => self.make_token(TokenType::RightParen),
+            '{' => self.make_token(TokenType::LeftBrace),
+            '}' => self.make_token(TokenType::RightBrace),
+            ';' => self.make_token(TokenType::Semicolon),
+            ',' => self.make_token(TokenType::Comma),
+            '.' => self.make_token(TokenType::Dot),
+            '-' => self.make_token(TokenType::Minus),
+            '+' => self.make_token(TokenType::Plus),
+            '/' => self.make_token(TokenType::Slash),
+            '*' => self.make_token(TokenType::Star),
+            // One or two character tokens
+            '!' => {
+                if self.match_char('=') {
+                    self.make_token(TokenType::BangEqual)
+                } else {
+                    self.make_token(TokenType::Bang)
+                }
+            }
+            '=' => {
+                if self.match_char('=') {
+                    self.make_token(TokenType::EqualEqual)
+                } else {
+                    self.make_token(TokenType::Equal)
+                }
+            }
+            '<' => {
+                if self.match_char('=') {
+                    self.make_token(TokenType::LessEqual)
+                } else {
+                    self.make_token(TokenType::Less)
+                }
+            }
+            '>' => {
+                if self.match_char('=') {
+                    self.make_token(TokenType::GreaterEqual)
+                } else {
+                    self.make_token(TokenType::Greater)
+                }
+            }
+            _ => self.error_token("Unexpected character"),
+        }
     }
 
     fn is_at_end(&self) -> bool {
@@ -105,5 +150,26 @@ impl<'a> Scanner<'a> {
             length: message.len(),
             line: self.line,
         }
+    }
+
+    fn advance(&mut self) -> char {
+        let c = self.source[self.current..].chars().next().unwrap();
+        self.current += c.len_utf8();
+        c
+    }
+
+    fn match_char(&mut self, expected: char) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+
+        let c = self.source[self.current..].chars().next().unwrap();
+
+        if c != expected {
+            return false;
+        }
+
+        self.current += c.len_utf8();
+        true
     }
 }

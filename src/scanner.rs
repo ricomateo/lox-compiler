@@ -208,7 +208,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn peek(&self) -> char {
-        self.source[self.current..].chars().next().unwrap()
+        self.source[self.current..].chars().next().unwrap_or('\0')
     }
 
     fn peek_next(&self) -> char {

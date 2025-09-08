@@ -303,6 +303,52 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier_type(&self) -> TokenType {
+        let text = &self.source[self.start..self.current];
+
+        match text.chars().next().unwrap() {
+            'a' => self.check_keyword(1, 2, "nd", TokenType::And),
+            'c' => self.check_keyword(1, 4, "lass", TokenType::Class),
+            'e' => self.check_keyword(1, 3, "lse", TokenType::Else),
+            'f' => {
+                if self.current - self.start > 1 {
+                    return match text.chars().nth(1).unwrap() {
+                        'a' => self.check_keyword(2, 3, "lse", TokenType::False),
+                        'o' => self.check_keyword(2, 1, "r", TokenType::For),
+                        'u' => self.check_keyword(2, 1, "n", TokenType::Fun),
+                        _ => TokenType::Identifier,
+                    };
+                }
+                return TokenType::Identifier;
+            }
+            'i' => self.check_keyword(1, 1, "f", TokenType::If),
+            'n' => self.check_keyword(1, 2, "il", TokenType::Nil),
+            'o' => self.check_keyword(1, 1, "r", TokenType::Or),
+            'p' => self.check_keyword(1, 4, "rint", TokenType::Print),
+            'r' => self.check_keyword(1, 5, "eturn", TokenType::Return),
+            's' => self.check_keyword(1, 4, "uper", TokenType::Super),
+            't' => {
+                if self.current - self.start > 1 {
+                    return match text.chars().nth(1).unwrap() {
+                        'h' => self.check_keyword(2, 2, "is", TokenType::This),
+                        'r' => self.check_keyword(2, 2, "ue", TokenType::True),
+                        _ => TokenType::Identifier,
+                    };
+                }
+                return TokenType::Identifier;
+            }
+            'v' => self.check_keyword(1, 2, "ar", TokenType::Var),
+            'w' => self.check_keyword(1, 4, "hile", TokenType::While),
+            _ => TokenType::Identifier,
+        }
+    }
+
+    fn check_keyword(&self, start: usize, length: usize, rest: &str, kind: TokenType) -> TokenType {
+        if self.current - self.start == start + length {
+            if &self.source[self.start + start..self.start + start + length] == rest {
+                return kind;
+            }
+        }
+
         TokenType::Identifier
     }
 }

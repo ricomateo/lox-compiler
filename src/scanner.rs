@@ -355,3 +355,134 @@ impl<'a> Scanner<'a> {
         TokenType::Identifier
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scanner::TokenType;
+
+    fn scan_all_tokens(source: &str) -> Vec<TokenType> {
+        let mut scanner = Scanner::new(source);
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = scanner.scan_token();
+            tokens.push(token.kind);
+            if token.kind == TokenType::Eof {
+                break;
+            }
+        }
+
+        tokens
+    }
+
+    #[test]
+    fn test_single_char_tokens() {
+        let source = "(){}.,-+;/*";
+
+        let tokens = scan_all_tokens(source);
+
+        assert_eq!(
+            tokens,
+            vec![
+                TokenType::LeftParen,
+                TokenType::RightParen,
+                TokenType::LeftBrace,
+                TokenType::RightBrace,
+                TokenType::Dot,
+                TokenType::Comma,
+                TokenType::Minus,
+                TokenType::Plus,
+                TokenType::Semicolon,
+                TokenType::Slash,
+                TokenType::Star,
+                TokenType::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_one_or_two_char_tokens() {
+        let source = "!= == <= >= = < > !";
+
+        let tokens = scan_all_tokens(source);
+
+        assert_eq!(
+            tokens,
+            vec![
+                TokenType::BangEqual,
+                TokenType::EqualEqual,
+                TokenType::LessEqual,
+                TokenType::GreaterEqual,
+                TokenType::Equal,
+                TokenType::Less,
+                TokenType::Greater,
+                TokenType::Bang,
+                TokenType::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_identifiers_and_keywords() {
+        let source = "and class else false fun for if nil or print return super this true var while identifier";
+
+        let tokens = scan_all_tokens(source);
+
+        assert_eq!(
+            tokens,
+            vec![
+                TokenType::And,
+                TokenType::Class,
+                TokenType::Else,
+                TokenType::False,
+                TokenType::Fun,
+                TokenType::For,
+                TokenType::If,
+                TokenType::Nil,
+                TokenType::Or,
+                TokenType::Print,
+                TokenType::Return,
+                TokenType::Super,
+                TokenType::This,
+                TokenType::True,
+                TokenType::Var,
+                TokenType::While,
+                TokenType::Identifier,
+                TokenType::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_numbers() {
+        let source = "107585 10.7585";
+
+        let tokens = scan_all_tokens(source);
+
+        assert_eq!(
+            tokens,
+            vec![
+                TokenType::Number,
+                TokenType::Number,
+                TokenType::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_strings() {
+        let source = "\"Crafting\" \"Interpreters\"";
+
+        let tokens = scan_all_tokens(source);
+        
+        assert_eq!(
+            tokens,
+            vec![
+                TokenType::String,
+                TokenType::String,
+                TokenType::Eof,
+            ]
+        );
+    }
+}

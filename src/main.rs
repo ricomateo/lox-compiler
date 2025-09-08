@@ -1,24 +1,50 @@
+use std::io::{self, Write};
+
 use lox_compiler::{
-    chunk::{Chunk, OpCode, Value},
+    chunk::Chunk,
     vm::Vm,
 };
 
 fn main() {
-    let mut chunk = Chunk::new();
-    let line = 123;
-    let constant_index = chunk.add_constant(Value::Number(1.2));
-    chunk.write(OpCode::Constant(constant_index), line);
-    let constant_index = chunk.add_constant(Value::Number(3.4));
-    chunk.write(OpCode::Constant(constant_index), line);
-    chunk.write(OpCode::Add, line);
-    let constant_index = chunk.add_constant(Value::Number(5.6));
-    chunk.write(OpCode::Constant(constant_index), line);
-    chunk.write(OpCode::Divide, line);
+    let chunk = Chunk::new();
+    let vm = Vm::new(chunk);
 
-    chunk.write(OpCode::Negate, line);
-    chunk.write(OpCode::Return, line);
+    let args: Vec<String> = std::env::args().collect();
 
-    let mut vm = Vm::new(chunk);
-    vm.interpret().unwrap();
-    // chunk.disassemble("test chunk");
+    if args.len() == 1 {
+        repl(vm);
+    } else if args.len() == 2 {
+        run_file(&args[1]);
+    } else {
+        eprintln!("Usage: rlox [path]");
+        std::process::exit(64);
+    }
+}
+
+fn repl(mut vm: Vm) {
+    let stdin = io::stdin();
+
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+
+        let mut line = String::new();
+        
+        if stdin.read_line(&mut line).unwrap() == 0 {
+            println!();
+            break;
+        }
+
+        let _ = vm.interpret(&line);
+    }
+}
+
+fn run_file(path: &str) {
+    let _source = std::fs::read_to_string(path)
+        .unwrap_or_else(|_| {
+            eprintln!("Could not read file: {}", path);
+            std::process::exit(65);
+        });
+
+    // TODO: interpret(&source);
 }

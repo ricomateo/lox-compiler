@@ -1,4 +1,5 @@
 use crate::chunk::{Chunk, OpCode, Value};
+use crate::compiler::compile;
 
 #[derive(Debug)]
 pub struct Vm {
@@ -16,8 +17,9 @@ impl Vm {
         }
     }
 
-    pub fn interpret(&mut self) -> Result<(), VmError> {
-        self.run()
+    pub fn interpret(&mut self, source: &str) -> Result<(), VmError> {
+        compile(source);
+        return Ok(());
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {

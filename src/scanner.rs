@@ -294,6 +294,7 @@ impl<'a> Scanner<'a> {
         (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
     }
 
+    /// Scans an identifier or a reserved keyword and returns the corresponding token.
     fn identifier(&mut self) -> Token {
         while Self::is_alpha(self.peek()) || Self::is_digit(self.peek()) {
             self.advance();
@@ -302,6 +303,7 @@ impl<'a> Scanner<'a> {
         self.make_token(self.identifier_type())
     }
 
+    /// Determines the type of the identifier by checking if it matches any reserved keywords.
     fn identifier_type(&self) -> TokenType {
         let text = &self.source[self.start..self.current];
 
@@ -342,6 +344,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
+    /// Checks if the current identifier matches a specific keyword.
     fn check_keyword(&self, start: usize, length: usize, rest: &str, kind: TokenType) -> TokenType {
         if self.current - self.start == start + length {
             if &self.source[self.start + start..self.start + start + length] == rest {

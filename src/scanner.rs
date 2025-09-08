@@ -102,6 +102,10 @@ impl<'a> Scanner<'a> {
 
         let c = self.advance();
 
+        if Self::is_alpha(c) {
+            return self.identifier();
+        }
+
         if Self::is_digit(c) {
             return self.number();
         }
@@ -284,5 +288,21 @@ impl<'a> Scanner<'a> {
         }
 
         self.make_token(TokenType::Number)
+    }
+
+    fn is_alpha(c: char) -> bool {
+        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
+    }
+
+    fn identifier(&mut self) -> Token {
+        while Self::is_alpha(self.peek()) || Self::is_digit(self.peek()) {
+            self.advance();
+        }
+
+        self.make_token(self.identifier_type())
+    }
+
+    fn identifier_type(&self) -> TokenType {
+        TokenType::Identifier
     }
 }

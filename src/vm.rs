@@ -17,7 +17,7 @@ impl Vm {
         }
     }
 
-    pub fn interpret(&mut self, source: &str) -> Result<(), VmError> {
+    pub fn interpret(&mut self, source: String) -> Result<(), VmError> {
         compile(source);
         return Ok(());
     }

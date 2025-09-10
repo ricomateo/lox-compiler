@@ -32,7 +32,7 @@ fn repl(mut vm: Vm) {
             break;
         }
 
-        let _ = vm.interpret(&line);
+        let _ = vm.interpret(line);
     }
 }
 

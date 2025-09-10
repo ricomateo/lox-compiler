@@ -3,9 +3,9 @@
 
 /// The 'source' field holds a reference to the entire input string with a lifetime `'a`.
 /// This ensures that the Scanner cannot outlive the source string it is scanning.
-pub struct Scanner<'a> {
+pub struct Scanner {
     /// The full source code to scan
-    pub source: &'a str,
+    pub source: String,
     /// Index where the curent token begins
     start: usize,
     /// Index of the character being currently scanned
@@ -14,7 +14,7 @@ pub struct Scanner<'a> {
     line: usize,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -68,7 +68,7 @@ pub enum TokenType {
 
 /// In the book, Token stores a pointer to the start of the lexeme and its length.
 /// In our implementation, we store the start as an index an the lenght separately. To get the lexeme, we slice the source string using these indices.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     /// Type of the token
     pub kind: TokenType,
@@ -82,8 +82,8 @@ pub struct Token {
     pub lexeme: String,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl Scanner {
+    pub fn new(source: String) -> Self {
         Self {
             source,
             start: 0,
@@ -177,7 +177,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Creates an error token with the given message.
-    fn error_token(&self, message: &'a str) -> Token {
+    fn error_token(&self, message: &str) -> Token {
         Token {
             kind: TokenType::Error,
             start: self.start,
@@ -367,7 +367,7 @@ mod tests {
     use crate::scanner::TokenType;
 
     fn scan_all_tokens(source: &str) -> Vec<TokenType> {
-        let mut scanner = Scanner::new(source);
+        let mut scanner = Scanner::new(source.to_string());
         let mut tokens = Vec::new();
 
         loop {
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_lexemes() {
-        let source = "var foo = 1;";
+        let source = "var foo = 1;".to_string();
         let mut scanner = Scanner::new(source);
         let mut tokens = Vec::new();
 

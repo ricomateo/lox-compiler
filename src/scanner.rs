@@ -72,7 +72,7 @@ pub enum TokenType {
 pub struct Token {
     /// Type of the token
     pub kind: TokenType,
-    /// Index where the lexeme starts 
+    /// Index where the lexeme starts
     pub start: usize,
     /// Length of the lexeme
     pub length: usize,
@@ -234,7 +234,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Returns the current character without advancing the scanner.
-    /// 
+    ///
     /// In the book, this is done by deferencing the current pointer.
     /// In our implementation, we safely slice the string and return '\0' if we are at the end.
     fn peek(&self) -> char {
@@ -242,7 +242,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Returns the next character without advancing the scanner.
-    /// 
+    ///
     /// In the book, this uses pointer arithmetic to look one character ahead.
     /// In our implementation, we use a 'chars()' iterator and skip the first character safely.
     fn peek_next(&self) -> char {
@@ -462,11 +462,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                TokenType::Number,
-                TokenType::Number,
-                TokenType::Eof,
-            ]
+            vec![TokenType::Number, TokenType::Number, TokenType::Eof,]
         );
     }
 
@@ -475,14 +471,10 @@ mod tests {
         let source = "\"Crafting\" \"Interpreters\"";
 
         let tokens = scan_all_tokens(source);
-        
+
         assert_eq!(
             tokens,
-            vec![
-                TokenType::String,
-                TokenType::String,
-                TokenType::Eof,
-            ]
+            vec![TokenType::String, TokenType::String, TokenType::Eof,]
         );
     }
 }

@@ -1,9 +1,6 @@
 use std::io::{self, Write};
 
-use lox_compiler::{
-    chunk::Chunk,
-    vm::Vm,
-};
+use lox_compiler::{chunk::Chunk, vm::Vm};
 
 fn main() {
     let chunk = Chunk::new();
@@ -29,7 +26,7 @@ fn repl(mut vm: Vm) {
         io::stdout().flush().unwrap();
 
         let mut line = String::new();
-        
+
         if stdin.read_line(&mut line).unwrap() == 0 {
             println!();
             break;
@@ -40,11 +37,10 @@ fn repl(mut vm: Vm) {
 }
 
 fn run_file(path: &str) {
-    let _source = std::fs::read_to_string(path)
-        .unwrap_or_else(|_| {
-            eprintln!("Could not read file: {}", path);
-            std::process::exit(65);
-        });
+    let _source = std::fs::read_to_string(path).unwrap_or_else(|_| {
+        eprintln!("Could not read file: {}", path);
+        std::process::exit(65);
+    });
 
     // TODO: interpret(&source);
 }

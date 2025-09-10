@@ -1,5 +1,5 @@
 use crate::{
-    chunk::Chunk,
+    chunk::{Chunk, OpCode},
     scanner::{Scanner, Token, TokenType},
 };
 
@@ -8,7 +8,9 @@ pub fn compile(source: String) -> Result<(), &'static str> {
     parser.advance();
     // expression(); TODO
     parser.consume(TokenType::Eof, "Expected end of expression");
+    parser.end_compiler();
     if parser.had_error {
+        // TODO: consider returning an actual error here
         return Err("");
     }
     Ok(())
@@ -21,6 +23,7 @@ struct Parser {
     panic_mode: bool,
     // TODO: consider removing scanner from here
     scanner: Scanner,
+    chunk: Chunk,
 }
 
 impl Parser {
@@ -31,6 +34,7 @@ impl Parser {
             had_error: false,
             panic_mode: false,
             scanner: Scanner::new(source),
+            chunk: Chunk::new(),
         }
     }
 
@@ -53,6 +57,15 @@ impl Parser {
             }
         }
         self.error_at_current(message);
+    }
+
+    fn emit_byte(&mut self, byte: OpCode) {
+        let line = self.previous.clone().unwrap().line;
+        self.chunk.write(byte, line);
+    }
+
+    fn end_compiler(&mut self) {
+        self.emit_byte(OpCode::Return);
     }
 
     fn error_at_current(&mut self, message: &str) {

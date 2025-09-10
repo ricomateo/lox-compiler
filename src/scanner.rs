@@ -78,6 +78,8 @@ pub struct Token {
     pub length: usize,
     /// Line number of the token
     pub line: usize,
+    // Lexeme
+    pub lexeme: String,
 }
 
 impl<'a> Scanner<'a> {
@@ -170,6 +172,7 @@ impl<'a> Scanner<'a> {
             start: self.start,
             length: self.current - self.start,
             line: self.line,
+            lexeme: self.source[self.start..self.current].to_string(),
         }
     }
 
@@ -180,6 +183,8 @@ impl<'a> Scanner<'a> {
             start: self.start,
             length: message.len(),
             line: self.line,
+            // TODO: check whether this is correct
+            lexeme: message.to_string(),
         }
     }
 
@@ -476,5 +481,28 @@ mod tests {
             tokens,
             vec![TokenType::String, TokenType::String, TokenType::Eof,]
         );
+    }
+
+    #[test]
+    fn test_lexemes() {
+        let source = "var foo = 1;";
+        let mut scanner = Scanner::new(source);
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = scanner.scan_token();
+            if token.kind == TokenType::Eof {
+                break;
+            }
+            tokens.push(token);
+        }
+
+        let expected_lexemes = ["var", "foo", "=", "1", ";"];
+
+        for i in 0..tokens.len() {
+            let lexeme = &tokens[i].lexeme;
+            let expected_lexeme = expected_lexemes[i];
+            assert_eq!(lexeme, expected_lexeme);
+        }
     }
 }

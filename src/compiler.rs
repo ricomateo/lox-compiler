@@ -41,6 +41,26 @@ enum Precedence {
     Primary,
 }
 
+impl Precedence {
+    // Returns the next precedence level
+    // In the book, this is achieved by simply incrementing the precedence by 1
+    fn next(&self) -> Precedence {
+        match self {
+            Precedence::None => Precedence::Assignment,
+            Precedence::Assignment => Precedence::Or,
+            Precedence::Or => Precedence::And,
+            Precedence::And => Precedence::Equality,
+            Precedence::Equality => Precedence::Comparison,
+            Precedence::Comparison => Precedence::Term,
+            Precedence::Term => Precedence::Factor,
+            Precedence::Factor => Precedence::Unary,
+            Precedence::Unary => Precedence::Call,
+            Precedence::Call => Precedence::Primary,
+            Precedence::Primary => unreachable!(),
+        }
+    }
+}
+
 impl Parser {
     fn new(source: String) -> Self {
         Self {
@@ -88,8 +108,8 @@ impl Parser {
         // i.e. we already consumed the first operand and the operator,
         // now we need to parse the rest of the expression
         let operator_type = self.previous.clone().unwrap().kind;
-        // let rule = self.get_rule(operator_type);
-        // self.parse_precedence(rule.precedence + 1);
+        let rule = get_rule(operator_type);
+        self.parse_precedence(rule.precedence.next());
 
         match operator_type {
             TokenType::Plus => {
@@ -179,5 +199,47 @@ impl Parser {
         }
         eprintln!(": {message}");
         self.had_error = true;
+    }
+}
+
+fn get_rule(token_type: TokenType) -> ParseRule {
+    match token_type {
+        TokenType::LeftParen => ParseRule::new(Some(Parser::grouping), None, Precedence::None),
+        TokenType::Minus => {
+            ParseRule::new(Some(Parser::unary), Some(Parser::binary), Precedence::Term)
+        }
+        TokenType::Plus => ParseRule::new(None, Some(Parser::binary), Precedence::Term),
+        TokenType::Slash => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
+        TokenType::Star => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
+        TokenType::Number => ParseRule::new(Some(Parser::number), None, Precedence::None),
+        _ => ParseRule::default(),
+    }
+}
+
+struct ParseRule {
+    prefix: Option<fn(&mut Parser)>,
+    infix: Option<fn(&mut Parser)>,
+    precedence: Precedence,
+}
+
+impl ParseRule {
+    fn new(
+        prefix: Option<fn(&mut Parser)>,
+        infix: Option<fn(&mut Parser)>,
+        precedence: Precedence,
+    ) -> Self {
+        Self {
+            prefix,
+            infix,
+            precedence,
+        }
+    }
+
+    fn default() -> Self {
+        Self {
+            prefix: None,
+            infix: None,
+            precedence: Precedence::None,
+        }
     }
 }

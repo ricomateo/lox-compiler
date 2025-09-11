@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{Chunk, OpCode},
+    chunk::{Chunk, OpCode, Value},
     scanner::{Scanner, Token, TokenType},
 };
 
@@ -24,6 +24,21 @@ struct Parser {
     // TODO: consider removing scanner from here
     scanner: Scanner,
     chunk: Chunk,
+}
+
+#[derive(PartialEq, PartialOrd)]
+enum Precedence {
+    None,
+    Assignment, // =
+    Or,         // or
+    And,        // and
+    Equality,   // == !=
+    Comparison, // < > <= >=
+    Term,       // + -
+    Factor,     // * /
+    Unary,      // ! -
+    Call,       // . ()
+    Primary,
 }
 
 impl Parser {
@@ -66,6 +81,51 @@ impl Parser {
 
     fn end_compiler(&mut self) {
         self.emit_byte(OpCode::Return);
+    }
+
+    fn expression(&mut self) {
+        self.parse_precedence(Precedence::Assignment);
+    }
+
+    fn grouping(&mut self) {
+        // Compile the expression wrapped in parentheses
+        self.expression();
+        self.consume(TokenType::RightParen, "Expect ')' after expression.");
+    }
+
+    fn number(&mut self) {
+        // The token has already been consumed and is stored in self.previous
+        let value_lexeme = self.previous.clone().unwrap().lexeme;
+        let value = Value::Number(value_lexeme.parse::<f64>().unwrap());
+        self.emit_constant(value);
+    }
+
+    fn unary(&mut self) {
+        let operator_type = self.previous.clone().unwrap().kind;
+        // Compile the operand
+        self.parse_precedence(Precedence::Unary);
+
+        match operator_type {
+            TokenType::Minus => {
+                self.emit_byte(OpCode::Negate);
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn parse_precedence(&mut self, precedence: Precedence) {
+        todo!()
+    }
+
+    fn emit_constant(&mut self, value: Value) {
+        let constant_index = self.make_constant(value);
+        self.emit_byte(OpCode::Constant(constant_index));
+    }
+
+    /// Adds a constant the `value` constant to the chunk and returns its index
+    fn make_constant(&mut self, value: Value) -> usize {
+        let constant_index = self.chunk.add_constant(value);
+        constant_index
     }
 
     fn error_at_current(&mut self, message: &str) {

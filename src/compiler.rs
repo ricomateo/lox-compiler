@@ -159,7 +159,19 @@ impl Parser {
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
-        todo!()
+        self.advance();
+        let previous_token_type = self.previous.clone().unwrap().kind;
+        let Some(prefix_rule) = get_rule(previous_token_type).prefix else {
+            self.error("Expect expression.");
+            return;
+        };
+        prefix_rule(self);
+
+        while precedence <= get_rule(self.current.clone().unwrap().kind).precedence {
+            self.advance();
+            let infix_rule = get_rule(self.previous.clone().unwrap().kind).infix.unwrap();
+            infix_rule(self);
+        }
     }
 
     fn emit_constant(&mut self, value: Value) {
@@ -176,6 +188,11 @@ impl Parser {
     fn error_at_current(&mut self, message: &str) {
         let token = &self.current.clone().unwrap();
         self.error_at(token, message);
+    }
+
+    fn error(&mut self, message: &str) {
+        let token = self.previous.clone().unwrap();
+        self.error_at(&token, message);
     }
 
     fn error_at(&mut self, token: &Token, message: &str) {

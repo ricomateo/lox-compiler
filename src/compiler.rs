@@ -6,7 +6,7 @@ use crate::{
 pub fn compile(source: String) -> Result<(), &'static str> {
     let mut parser = Parser::new(source);
     parser.advance();
-    // expression(); TODO
+    parser.expression();
     parser.consume(TokenType::Eof, "Expected end of expression");
     parser.end_compiler();
     if parser.had_error {
@@ -81,6 +81,31 @@ impl Parser {
 
     fn end_compiler(&mut self) {
         self.emit_byte(OpCode::Return);
+    }
+
+    fn binary(&mut self) {
+        // At this point we already know we are parsing a binary operator
+        // i.e. we already consumed the first operand and the operator,
+        // now we need to parse the rest of the expression
+        let operator_type = self.previous.clone().unwrap().kind;
+        // let rule = self.get_rule(operator_type);
+        // self.parse_precedence(rule.precedence + 1);
+
+        match operator_type {
+            TokenType::Plus => {
+                self.emit_byte(OpCode::Add);
+            }
+            TokenType::Minus => {
+                self.emit_byte(OpCode::Subtract);
+            }
+            TokenType::Star => {
+                self.emit_byte(OpCode::Multiply);
+            }
+            TokenType::Slash => {
+                self.emit_byte(OpCode::Divide);
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn expression(&mut self) {

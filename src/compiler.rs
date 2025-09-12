@@ -1,10 +1,10 @@
 use crate::{
     chunk::{Chunk, OpCode, Value},
-    scanner::{Scanner, Token, TokenType},
+    scanner::{Token, TokenType},
 };
 
-pub fn compile(source: String) -> Result<Chunk, &'static str> {
-    let mut parser = Parser::new(source);
+pub fn compile(tokens: Vec<Token>) -> Result<Chunk, &'static str> {
+    let mut parser = Parser::new(tokens);
     parser.advance();
     parser.expression();
     parser.consume(TokenType::Eof, "Expected end of expression");
@@ -21,8 +21,8 @@ struct Parser {
     previous: Option<Token>,
     had_error: bool,
     panic_mode: bool,
-    // TODO: consider removing scanner from here
-    scanner: Scanner,
+    tokens: Vec<Token>,   // Token list with scanned tokens
+    current_index: usize, // Token index
     chunk: Chunk,
 }
 
@@ -62,22 +62,27 @@ impl Precedence {
 }
 
 impl Parser {
-    fn new(source: String) -> Self {
+    fn new(tokens: Vec<Token>) -> Self {
         Self {
             current: None,
             previous: None,
             had_error: false,
             panic_mode: false,
-            scanner: Scanner::new(source),
             chunk: Chunk::new(),
+            tokens,
+            current_index: 0,
         }
     }
 
     fn advance(&mut self) {
         self.previous = self.current.clone();
         loop {
-            let token = self.scanner.scan_token();
+            if self.current_index >= self.tokens.len() {
+                break;
+            }
+            let token = self.tokens[self.current_index].clone();
             self.current = Some(token.clone());
+            self.current_index += 1;
             if token.kind != TokenType::Error {
                 break;
             }

@@ -1,8 +1,3 @@
-/// In the book, the Scanner uses raw pointers to the start and current positions in the source string.
-/// In our implementation, we represent those positions as indices into the source string (&str).
-
-/// The 'source' field holds a reference to the entire input string with a lifetime `'a`.
-/// This ensures that the Scanner cannot outlive the source string it is scanning.
 pub struct Scanner {
     /// The full source code to scan
     pub source: String,
@@ -66,8 +61,6 @@ pub enum TokenType {
     Eof,
 }
 
-/// In the book, Token stores a pointer to the start of the lexeme and its length.
-/// In our implementation, we store the start as an index an the lenght separately. To get the lexeme, we slice the source string using these indices.
 #[derive(Debug, Clone)]
 pub struct Token {
     /// Type of the token
@@ -90,6 +83,20 @@ impl Scanner {
             current: 0,
             line: 1,
         }
+    }
+
+    pub fn scan(&mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = self.scan_token();
+            tokens.push(token.clone());
+            if token.kind == TokenType::Eof {
+                break;
+            }
+        }
+
+        tokens
     }
 
     /// Scans the next token from the source code and returns it.

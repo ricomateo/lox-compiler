@@ -18,7 +18,9 @@ impl Vm {
     }
 
     pub fn interpret(&mut self, source: String) -> Result<(), VmError> {
-        compile(source);
+        let chunk = compile(source).unwrap();
+        let mut vm = Vm::new(chunk);
+        vm.run().unwrap();
         return Ok(());
     }
 

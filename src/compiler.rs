@@ -3,7 +3,7 @@ use crate::{
     scanner::{Scanner, Token, TokenType},
 };
 
-pub fn compile(source: String) -> Result<(), &'static str> {
+pub fn compile(source: String) -> Result<Chunk, &'static str> {
     let mut parser = Parser::new(source);
     parser.advance();
     parser.expression();
@@ -13,7 +13,7 @@ pub fn compile(source: String) -> Result<(), &'static str> {
         // TODO: consider returning an actual error here
         return Err("");
     }
-    Ok(())
+    Ok(parser.chunk)
 }
 
 struct Parser {
@@ -74,12 +74,13 @@ impl Parser {
     }
 
     fn advance(&mut self) {
+        self.previous = self.current.clone();
         loop {
             let token = self.scanner.scan_token();
+            self.current = Some(token.clone());
             if token.kind != TokenType::Error {
                 break;
             }
-            self.current = Some(token);
             self.error_at_current("");
         }
     }

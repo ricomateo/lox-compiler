@@ -14,13 +14,13 @@ El REPL permite compilar y ejecutar línea por línea:
 $ cargo run
 ```
 
-## Ejecutar un archivo línea por línea
+### Ejecutar un archivo línea por línea
 
 ```bash
 $ cargo run examples/calc.lox
 ```
 
-## Debugging
+### Debugging
 
 La VM se puede ejecutar en modo debugging seteando la variable de entorno `DEBUG_TRACE`:
 

@@ -114,7 +114,7 @@ impl Parser {
         // i.e. we already consumed the first operand and the operator,
         // now we need to parse the rest of the expression
         let operator_type = self.previous.clone().unwrap().kind;
-        let rule = get_rule(operator_type);
+        let rule = Self::get_rule(operator_type);
         self.parse_precedence(rule.precedence.next());
 
         match operator_type {
@@ -164,18 +164,26 @@ impl Parser {
         }
     }
 
+    // Parses a prefix expression, and attempts to parse an infix expression with the next tokens,
+    // as long as their precedence is higher than the current.
     fn parse_precedence(&mut self, precedence: Precedence) {
         self.advance();
         let previous_token_type = self.previous.clone().unwrap().kind;
-        let Some(prefix_rule) = get_rule(previous_token_type).prefix else {
+        // The first token is always going to belong to a prefix expression, by definition
+        let Some(prefix_rule) = Self::get_rule(previous_token_type).prefix else {
             self.error("Expect expression.");
             return;
         };
+        // Consume the prefix expression tokens
         prefix_rule(self);
 
-        while precedence <= get_rule(self.current.clone().unwrap().kind).precedence {
+        // Attempt to parse an infix expression
+        while precedence <= Self::get_rule(self.current.clone().unwrap().kind).precedence {
+            // Consume the infix expression token (e.g. the right operand)
             self.advance();
-            let infix_rule = get_rule(self.previous.clone().unwrap().kind).infix.unwrap();
+            let infix_rule = Self::get_rule(self.previous.clone().unwrap().kind)
+                .infix
+                .unwrap();
             infix_rule(self);
         }
     }
@@ -185,7 +193,7 @@ impl Parser {
         self.emit_byte(OpCode::Constant(constant_index));
     }
 
-    /// Adds a constant the `value` constant to the chunk and returns its index
+    /// Adds the `value` constant to the chunk and returns its index
     fn make_constant(&mut self, value: Value) -> usize {
         let constant_index = self.chunk.add_constant(value);
         constant_index
@@ -223,19 +231,23 @@ impl Parser {
         eprintln!(": {message}");
         self.had_error = true;
     }
-}
 
-fn get_rule(token_type: TokenType) -> ParseRule {
-    match token_type {
-        TokenType::LeftParen => ParseRule::new(Some(Parser::grouping), None, Precedence::None),
-        TokenType::Minus => {
-            ParseRule::new(Some(Parser::unary), Some(Parser::binary), Precedence::Term)
+    /// Given a token type, returns a `ParseRule` struct, which contains:
+    ///  * the function to compile a prefix expression starting with a token of that type
+    ///  * the function to compile an infix expression whose left operand is followed by a token of that type
+    ///  * the precedence of an infix expression that uses that token as an operator
+    fn get_rule(token_type: TokenType) -> ParseRule {
+        match token_type {
+            TokenType::LeftParen => ParseRule::new(Some(Parser::grouping), None, Precedence::None),
+            TokenType::Minus => {
+                ParseRule::new(Some(Parser::unary), Some(Parser::binary), Precedence::Term)
+            }
+            TokenType::Plus => ParseRule::new(None, Some(Parser::binary), Precedence::Term),
+            TokenType::Slash => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
+            TokenType::Star => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
+            TokenType::Number => ParseRule::new(Some(Parser::number), None, Precedence::None),
+            _ => ParseRule::default(),
         }
-        TokenType::Plus => ParseRule::new(None, Some(Parser::binary), Precedence::Term),
-        TokenType::Slash => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
-        TokenType::Star => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
-        TokenType::Number => ParseRule::new(Some(Parser::number), None, Precedence::None),
-        _ => ParseRule::default(),
     }
 }
 

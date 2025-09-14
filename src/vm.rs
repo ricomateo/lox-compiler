@@ -1,6 +1,4 @@
 use crate::chunk::{Chunk, OpCode, Value};
-use crate::compiler::compile;
-use crate::scanner::Scanner;
 
 #[derive(Debug)]
 pub struct Vm {
@@ -16,22 +14,6 @@ impl Vm {
             instruction_pointer: 0,
             stack: Vec::new(),
         }
-    }
-
-    pub fn interpret(&mut self, source: String) -> Result<(), VmError> {
-        // Phase 1: Scanning
-        let mut scanner = Scanner::new(source);
-        let tokens = scanner.scan();
-
-        // Phase 2: Parsing and compiling (for now, we do it in one step)
-        let chunk = compile(tokens).unwrap();
-
-        // Phase 3: Compiling
-        // TODO: Separate compilation (bytecode generation) from parsing
-
-        let mut vm = Vm::new(chunk);
-        vm.run().unwrap();
-        Ok(())
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {

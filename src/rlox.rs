@@ -47,7 +47,10 @@ impl Rlox {
             std::process::exit(65);
         });
 
-        self.interpret(source);
+        for line in source.lines() {
+            println!("> {}", line);
+            self.interpret(line.to_string());
+        }
     }
 
     fn interpret(&mut self, source: String) {

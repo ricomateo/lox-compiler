@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{self, Write};
 
-use crate::{compiler::compile, scanner::Scanner, vm::Vm};
+use crate::{compiler::Compiler, parser::Parser, scanner::Scanner, vm::Vm};
 
 pub struct Rlox;
 
@@ -54,17 +54,27 @@ impl Rlox {
     }
 
     fn interpret(&mut self, source: String) {
+        log::info!("Source: {:#?}", source);
+
         // Phase 1: Scanning
+        log::info!("Scanning...");
         let mut scanner = Scanner::new(source);
         let tokens = scanner.scan();
+        log::debug!("Tokens: {:#?}", tokens);
 
-        // Phase 2: Parsing and compiling (for now, we do it in one step)
-        let chunk = compile(tokens).unwrap();
+        // Phase 2: Parsing
+        log::info!("Parsing...");
+        let mut parser = Parser::new(tokens);
+        let ast = parser.expression();
+        log::debug!("AST: {:#?}", ast);
 
-        // Phase 3: Compiling
-        // TODO: Separate compilation (bytecode generation) from parsing
+        // Phase 3: Compilation
+        log::info!("Compiling...");
+        let mut compiler = Compiler::new();
+        let chunk = compiler.compile(&ast);
 
         // Phase 4: Running
+        log::info!("Running...");
         let mut vm = Vm::new(chunk);
         vm.run().unwrap();
     }

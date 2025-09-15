@@ -244,3 +244,151 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::expr::Expr;
+    use crate::scanner::Scanner;
+
+    fn scan_and_parse(source: &str) -> Expr {
+        let mut scanner = Scanner::new(source.into());
+        let tokens = scanner.scan();
+        let mut parser = Parser::new(tokens);
+        parser.expression()
+    }
+
+    #[test]
+    fn test_literal() {
+        let source = "1";
+        let ast = scan_and_parse(source);
+        assert_eq!(ast, Expr::Literal(Literal::Number(1.0)))
+    }
+
+    #[test]
+    fn test_unary() {
+        let source = "-1";
+        let ast = scan_and_parse(source);
+        let Expr::Unary { operator, right } = ast else {
+            panic!("Expected unary expression");
+        };
+        let Expr::Literal(literal) = *right else {
+            panic!("Expected literal");
+        };
+        assert_eq!(operator.kind, TokenType::Minus);
+        assert_eq!(literal, Literal::Number(1.0));
+    }
+
+    #[test]
+    fn test_grouping() {
+        let source = "(1)";
+        let ast = scan_and_parse(source);
+        let Expr::Grouping { expression } = ast else {
+            panic!("Expected grouping expression");
+        };
+        let Expr::Literal(literal) = *expression else {
+            panic!("Expected literal");
+        };
+        assert_eq!(literal, Literal::Number(1.0));
+    }
+
+    #[test]
+    fn test_grouping_and_unary() {
+        let source = "(-1)";
+        let ast = scan_and_parse(source);
+        let Expr::Grouping { expression } = ast else {
+            panic!("Expected grouping expression");
+        };
+        let Expr::Unary { operator, right } = *expression else {
+            panic!("Expected unary expression");
+        };
+        let Expr::Literal(literal) = *right else {
+            panic!("Expected literal");
+        };
+        assert_eq!(literal, Literal::Number(1.0));
+        assert_eq!(operator.kind, TokenType::Minus);
+    }
+
+    #[test]
+    fn test_binary() {
+        let source = "2 + 3";
+        let ast = scan_and_parse(source);
+        let Expr::Binary {
+            left,
+            operator,
+            right,
+        } = ast
+        else {
+            panic!("Expected binary expression");
+        };
+        let Expr::Literal(left) = *left else {
+            panic!("Expected literal at left");
+        };
+        let Expr::Literal(right) = *right else {
+            panic!("Expected literal at right");
+        };
+        assert_eq!(left, Literal::Number(2.0));
+        assert_eq!(operator.kind, TokenType::Plus);
+        assert_eq!(right, Literal::Number(3.0));
+    }
+
+    #[test]
+    fn test_more_complex_binary() {
+        let source = "(2 - -3) / (3 * 4)";
+        let ast = scan_and_parse(source);
+        let Expr::Binary {
+            left,
+            operator,
+            right,
+        } = ast
+        else {
+            panic!("Expected binary expression");
+        };
+
+        // Check the left operand (2 - -3)
+        {
+            let Expr::Grouping { expression } = *left else {
+                panic!("Expected a grouping expression as the first operand");
+            };
+            let Expr::Binary {
+                left,
+                operator,
+                right,
+            } = *expression
+            else {
+                panic!("Expected binary as the first grouping expression");
+            };
+            assert_eq!(*left, Expr::Literal(Literal::Number(2.0)));
+            assert_eq!(operator.kind, TokenType::Minus);
+            // Check the right operand (-3)
+            {
+                let Expr::Unary { operator, right } = *right else {
+                    panic!("Expected unary");
+                };
+                assert_eq!(operator.kind, TokenType::Minus);
+                assert_eq!(*right, Expr::Literal(Literal::Number(3.0)));
+            }
+        }
+
+        // Check the operator
+        assert_eq!(operator.kind, TokenType::Slash);
+
+        // Check the right operand (3 * 4)
+        {
+            let Expr::Grouping { expression } = *right else {
+                panic!("Expected a grouping expression as the second operand");
+            };
+            let Expr::Binary {
+                left,
+                operator,
+                right,
+            } = *expression
+            else {
+                panic!("Expected binary as the second grouping expression");
+            };
+            assert_eq!(*left, Expr::Literal(Literal::Number(3.0)));
+            assert_eq!(operator.kind, TokenType::Star);
+            assert_eq!(*right, Expr::Literal(Literal::Number(4.0)));
+        }
+    }
+}

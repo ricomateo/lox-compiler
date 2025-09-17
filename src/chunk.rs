@@ -14,10 +14,10 @@ pub enum OpCode {
     Return,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
     chunk: Vec<OpCode>,
-    constants: Vec<Value>,
+    pub constants: Vec<Value>,
     lines: Vec<usize>,
 }
 

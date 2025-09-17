@@ -1,11 +1,6 @@
-/// In the book, the Scanner uses raw pointers to the start and current positions in the source string.
-/// In our implementation, we represent those positions as indices into the source string (&str).
-
-/// The 'source' field holds a reference to the entire input string with a lifetime `'a`.
-/// This ensures that the Scanner cannot outlive the source string it is scanning.
-pub struct Scanner<'a> {
+pub struct Scanner {
     /// The full source code to scan
-    pub source: &'a str,
+    pub source: String,
     /// Index where the curent token begins
     start: usize,
     /// Index of the character being currently scanned
@@ -14,7 +9,7 @@ pub struct Scanner<'a> {
     line: usize,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType {
     // Single-character tokens
     LeftParen,
@@ -66,28 +61,42 @@ pub enum TokenType {
     Eof,
 }
 
-/// In the book, Token stores a pointer to the start of the lexeme and its length.
-/// In our implementation, we store the start as an index an the lenght separately. To get the lexeme, we slice the source string using these indices.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     /// Type of the token
     pub kind: TokenType,
-    /// Index where the lexeme starts 
+    /// Index where the lexeme starts
     pub start: usize,
     /// Length of the lexeme
     pub length: usize,
     /// Line number of the token
     pub line: usize,
+    // Lexeme
+    pub lexeme: String,
 }
 
-impl<'a> Scanner<'a> {
-    pub fn new(source: &'a str) -> Self {
+impl Scanner {
+    pub fn new(source: String) -> Self {
         Self {
             source,
             start: 0,
             current: 0,
             line: 1,
         }
+    }
+
+    pub fn scan(&mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = self.scan_token();
+            tokens.push(token.clone());
+            if token.kind == TokenType::Eof {
+                break;
+            }
+        }
+
+        tokens
     }
 
     /// Scans the next token from the source code and returns it.
@@ -170,16 +179,19 @@ impl<'a> Scanner<'a> {
             start: self.start,
             length: self.current - self.start,
             line: self.line,
+            lexeme: self.source[self.start..self.current].to_string(),
         }
     }
 
     /// Creates an error token with the given message.
-    fn error_token(&self, message: &'a str) -> Token {
+    fn error_token(&self, message: &str) -> Token {
         Token {
             kind: TokenType::Error,
             start: self.start,
             length: message.len(),
             line: self.line,
+            // TODO: check whether this is correct
+            lexeme: message.to_string(),
         }
     }
 
@@ -234,7 +246,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Returns the current character without advancing the scanner.
-    /// 
+    ///
     /// In the book, this is done by deferencing the current pointer.
     /// In our implementation, we safely slice the string and return '\0' if we are at the end.
     fn peek(&self) -> char {
@@ -242,7 +254,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Returns the next character without advancing the scanner.
-    /// 
+    ///
     /// In the book, this uses pointer arithmetic to look one character ahead.
     /// In our implementation, we use a 'chars()' iterator and skip the first character safely.
     fn peek_next(&self) -> char {
@@ -362,7 +374,7 @@ mod tests {
     use crate::scanner::TokenType;
 
     fn scan_all_tokens(source: &str) -> Vec<TokenType> {
-        let mut scanner = Scanner::new(source);
+        let mut scanner = Scanner::new(source.to_string());
         let mut tokens = Vec::new();
 
         loop {
@@ -462,11 +474,7 @@ mod tests {
 
         assert_eq!(
             tokens,
-            vec![
-                TokenType::Number,
-                TokenType::Number,
-                TokenType::Eof,
-            ]
+            vec![TokenType::Number, TokenType::Number, TokenType::Eof,]
         );
     }
 
@@ -475,14 +483,33 @@ mod tests {
         let source = "\"Crafting\" \"Interpreters\"";
 
         let tokens = scan_all_tokens(source);
-        
+
         assert_eq!(
             tokens,
-            vec![
-                TokenType::String,
-                TokenType::String,
-                TokenType::Eof,
-            ]
+            vec![TokenType::String, TokenType::String, TokenType::Eof,]
         );
+    }
+
+    #[test]
+    fn test_lexemes() {
+        let source = "var foo = 1;".to_string();
+        let mut scanner = Scanner::new(source);
+        let mut tokens = Vec::new();
+
+        loop {
+            let token = scanner.scan_token();
+            if token.kind == TokenType::Eof {
+                break;
+            }
+            tokens.push(token);
+        }
+
+        let expected_lexemes = ["var", "foo", "=", "1", ";"];
+
+        for i in 0..tokens.len() {
+            let lexeme = &tokens[i].lexeme;
+            let expected_lexeme = expected_lexemes[i];
+            assert_eq!(lexeme, expected_lexeme);
+        }
     }
 }

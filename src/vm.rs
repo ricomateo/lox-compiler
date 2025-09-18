@@ -38,7 +38,7 @@ impl Vm {
                     //     _ => return Err(VmError::RuntimeError),
                     // }
 
-                    match self.peek() {
+                    match self.peek(0) {
                         Some(Value::Number(_)) => {
                             let value = self.stack.pop().unwrap();
                             if let Value::Number(v) = value {
@@ -54,84 +54,103 @@ impl Vm {
                     println!("{value:?}");
                     return Ok(());
                 }
-                // TODO: extract repeated code and remove unwraps
+                // TODO: remove unwraps
                 OpCode::Add => {
-                    // let Value::Number(b) = self.stack.pop().unwrap();
-                    // let Value::Number(a) = self.stack.pop().unwrap();
-                    // let result = Value::Number(a + b);
-                    // self.stack.push(result);
-
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    match (a, b) {
-                        (Value::Number(a), Value::Number(b)) => {
-                            let result = Value::Number(a + b);
-                            self.stack.push(result);
-                        }
-                        _ => return Err(VmError::RuntimeError),
-                    }
+                    // let b = self.stack.pop().unwrap();
+                    // let a = self.stack.pop().unwrap();
+                    // match (a, b) {
+                    //     (Value::Number(a), Value::Number(b)) => {
+                    //         let result = Value::Number(a + b);
+                    //         self.stack.push(result);
+                    //     }
+                    //     _ => return Err(VmError::RuntimeError),
+                    // }
+                    self.binary_op_number(|a, b| a + b)?;
                 }
                 OpCode::Subtract => {
-                    // let Value::Number(b) = self.stack.pop().unwrap();
-                    // let Value::Number(a) = self.stack.pop().unwrap();
-                    // let result = Value::Number(a - b);
-                    // self.stack.push(result);
-
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    match (a, b) {
-                        (Value::Number(a), Value::Number(b)) => {
-                            let result = Value::Number(a - b);
-                            self.stack.push(result);
-                        }
-                        _ => return Err(VmError::RuntimeError),
-                    }
+                    // let b = self.stack.pop().unwrap();
+                    // let a = self.stack.pop().unwrap();
+                    // match (a, b) {
+                    //     (Value::Number(a), Value::Number(b)) => {
+                    //         let result = Value::Number(a - b);
+                    //         self.stack.push(result);
+                    //     }
+                    //     _ => return Err(VmError::RuntimeError),
+                    // }
+                    self.binary_op_number(|a, b| a - b)?;
                 }
                 OpCode::Multiply => {
-                    // let Value::Number(b) = self.stack.pop().unwrap();
-                    // let Value::Number(a) = self.stack.pop().unwrap();
-                    // let result = Value::Number(a * b);
-                    // self.stack.push(result);
-
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    match (a, b) {
-                        (Value::Number(a), Value::Number(b)) => {
-                            let result = Value::Number(a * b);
-                            self.stack.push(result);
-                        }
-                        _ => return Err(VmError::RuntimeError),
-                    }
+                    // let b = self.stack.pop().unwrap();
+                    // let a = self.stack.pop().unwrap();
+                    // match (a, b) {
+                    //     (Value::Number(a), Value::Number(b)) => {
+                    //         let result = Value::Number(a * b);
+                    //         self.stack.push(result);
+                    //     }
+                    //     _ => return Err(VmError::RuntimeError),
+                    // }
+                    self.binary_op_number(|a, b| a * b)?;
                 }
                 OpCode::Divide => {
-                    // let Value::Number(b) = self.stack.pop().unwrap();
-                    // let Value::Number(a) = self.stack.pop().unwrap();
-                    // let result = Value::Number(a / b);
-                    // self.stack.push(result);
-
-                    let b = self.stack.pop().unwrap();
-                    let a = self.stack.pop().unwrap();
-                    match (a, b) {
-                        (Value::Number(a), Value::Number(b)) => {
-                            let result = Value::Number(a / b);
-                            self.stack.push(result);
-                        }
-                        _ => return Err(VmError::RuntimeError),
-                    }
+                    // let b = self.stack.pop().unwrap();
+                    // let a = self.stack.pop().unwrap();
+                    // match (a, b) {
+                    //     (Value::Number(a), Value::Number(b)) => {
+                    //         let result = Value::Number(a / b);
+                    //         self.stack.push(result);
+                    //     }
+                    //     _ => return Err(VmError::RuntimeError),
+                    // }
+                    self.binary_op_number(|a, b| a / b)?;
                 }
             }
         }
     }
 
-    /// Returns the top value of the stack without popping it.
-    fn peek(&self) -> Option<&Value> {
-        self.stack.last()
+    /// Returns a reference to a value on the stack without popping it.
+    /// distance 0 is top of stack
+    /// distance 1 is one below the top of the stack
+    fn peek(&self, distance: usize) -> Option<&Value> {
+        if distance >= self.stack.len() {
+            None
+        } else {
+            let idx = self.stack.len() - 1 - distance;
+            self.stack.get(idx)
+        }
     }
 
     fn runtime_error(&mut self, message: &str) -> Result<(), VmError> {
         eprintln!("Runtime error: {message}");
         self.stack.clear();
         Err(VmError::RuntimeError)
+    }
+
+    /// In the book, the BINARY_OP macro checks operand types with peek(distance) before popping the values.
+    /// This function mirrors that macro: it validates peek(0) and peek(1) are numbers and only then pops and applies the op.
+    fn binary_op_number<F>(&mut self, op: F) -> Result<(), VmError>
+    where
+        F: Fn(f64, f64) -> f64,
+    {
+        // Check types first using peek.
+        if !matches!(self.peek(0), Some(Value::Number(_)))
+            || !matches!(self.peek(1), Some(Value::Number(_)))
+        {
+            return self.runtime_error("Operands must be numbers.");
+        }
+
+        // Safe to pop because we just checked with peek.
+        let b = match self.stack.pop() {
+            Some(Value::Number(v)) => v,
+            _ => return self.runtime_error("Operands must be numbers."),
+        };
+        let a = match self.stack.pop() {
+            Some(Value::Number(v)) => v,
+            _ => return self.runtime_error("Operands must be numbers."),
+        };
+
+        let result = Value::Number(op(a, b));
+        self.stack.push(result);
+        Ok(())
     }
 
     fn debug_trace(&self) {

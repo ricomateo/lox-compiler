@@ -35,6 +35,7 @@ impl Vm {
                             let negated_value = Value::Number(-value);
                             self.stack.push(negated_value);
                         }
+                        _ => return Err(VmError::RuntimeError),
                     }
                 }
                 OpCode::Return => {
@@ -44,28 +45,68 @@ impl Vm {
                 }
                 // TODO: extract repeated code and remove unwraps
                 OpCode::Add => {
-                    let Value::Number(b) = self.stack.pop().unwrap();
-                    let Value::Number(a) = self.stack.pop().unwrap();
-                    let result = Value::Number(a + b);
-                    self.stack.push(result);
+                    // let Value::Number(b) = self.stack.pop().unwrap();
+                    // let Value::Number(a) = self.stack.pop().unwrap();
+                    // let result = Value::Number(a + b);
+                    // self.stack.push(result);
+
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Number(a), Value::Number(b)) => {
+                            let result = Value::Number(a + b);
+                            self.stack.push(result);
+                        }
+                        _ => return Err(VmError::RuntimeError),
+                    }
                 }
                 OpCode::Subtract => {
-                    let Value::Number(b) = self.stack.pop().unwrap();
-                    let Value::Number(a) = self.stack.pop().unwrap();
-                    let result = Value::Number(a - b);
-                    self.stack.push(result);
+                    // let Value::Number(b) = self.stack.pop().unwrap();
+                    // let Value::Number(a) = self.stack.pop().unwrap();
+                    // let result = Value::Number(a - b);
+                    // self.stack.push(result);
+
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Number(a), Value::Number(b)) => {
+                            let result = Value::Number(a - b);
+                            self.stack.push(result);
+                        }
+                        _ => return Err(VmError::RuntimeError),
+                    }
                 }
                 OpCode::Multiply => {
-                    let Value::Number(b) = self.stack.pop().unwrap();
-                    let Value::Number(a) = self.stack.pop().unwrap();
-                    let result = Value::Number(a * b);
-                    self.stack.push(result);
+                    // let Value::Number(b) = self.stack.pop().unwrap();
+                    // let Value::Number(a) = self.stack.pop().unwrap();
+                    // let result = Value::Number(a * b);
+                    // self.stack.push(result);
+
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Number(a), Value::Number(b)) => {
+                            let result = Value::Number(a * b);
+                            self.stack.push(result);
+                        }
+                        _ => return Err(VmError::RuntimeError),
+                    }
                 }
                 OpCode::Divide => {
-                    let Value::Number(b) = self.stack.pop().unwrap();
-                    let Value::Number(a) = self.stack.pop().unwrap();
-                    let result = Value::Number(a / b);
-                    self.stack.push(result);
+                    // let Value::Number(b) = self.stack.pop().unwrap();
+                    // let Value::Number(a) = self.stack.pop().unwrap();
+                    // let result = Value::Number(a / b);
+                    // self.stack.push(result);
+
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    match (a, b) {
+                        (Value::Number(a), Value::Number(b)) => {
+                            let result = Value::Number(a / b);
+                            self.stack.push(result);
+                        }
+                        _ => return Err(VmError::RuntimeError),
+                    }
                 }
             }
         }
@@ -74,8 +115,13 @@ impl Vm {
     fn debug_trace(&self) {
         print!("          ");
         for value in &self.stack {
-            let Value::Number(value) = value;
-            print!("[ {value} ]");
+            // let Value::Number(value) = value;
+            // print!("[ {value} ]");
+            match value {
+                Value::Number(v) => print!("[ {v} ]"),
+                Value::Bool(v) => print!("[ {v} ]"),
+                Value::Nil => print!("[ nil ]"),
+            }
         }
         println!("");
         self.chunk.disassemble_instruction(self.instruction_pointer);

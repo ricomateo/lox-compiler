@@ -1,6 +1,8 @@
 #[derive(Debug, Clone)]
 pub enum Value {
     Number(f64),
+    Bool(bool),
+    Nil,
 }
 
 #[derive(Debug, Clone)]
@@ -87,8 +89,15 @@ impl Chunk {
     }
 
     fn constant_instruction(&self, name: &str, offset: usize, constant_index: usize) -> usize {
-        let Value::Number(value) = &self.constants[constant_index];
-        println!("{:<16} {:>4} '{}'", name, constant_index, value);
+        // let Value::Number(value) = &self.constants[constant_index];
+        let value = &self.constants[constant_index];
+
+        match value {
+            Value::Number(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
+            Value::Bool(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
+            Value::Nil => println!("{:<16} {:>4} 'nil'", name, constant_index),
+        }
+
         // In the book, this function returns offset + 2 because the constant index is stored separately from Opcode::Constant
         // In our implementation, we combine them into a single element (Opcode::Constant(constant_index)), so we return offset + 1
         offset + 1

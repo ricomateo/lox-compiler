@@ -29,13 +29,24 @@ impl Vm {
                     self.stack.push(constant);
                 }
                 OpCode::Negate => {
-                    let value = self.stack.pop().unwrap();
-                    match value {
-                        Value::Number(value) => {
-                            let negated_value = Value::Number(-value);
-                            self.stack.push(negated_value);
+                    // let value = self.stack.pop().unwrap();
+                    // match value {
+                    //     Value::Number(value) => {
+                    //         let negated_value = Value::Number(-value);
+                    //         self.stack.push(negated_value);
+                    //     }
+                    //     _ => return Err(VmError::RuntimeError),
+                    // }
+
+                    match self.peek() {
+                        Some(Value::Number(_)) => {
+                            let value = self.stack.pop().unwrap();
+                            if let Value::Number(v) = value {
+                                let negated_value = Value::Number(-v);
+                                self.stack.push(negated_value);
+                            }
                         }
-                        _ => return Err(VmError::RuntimeError),
+                        _ => return self.runtime_error("Operand must be a number."),
                     }
                 }
                 OpCode::Return => {
@@ -110,6 +121,17 @@ impl Vm {
                 }
             }
         }
+    }
+
+    /// Returns the top value of the stack without popping it.
+    fn peek(&self) -> Option<&Value> {
+        self.stack.last()
+    }
+
+    fn runtime_error(&mut self, message: &str) -> Result<(), VmError> {
+        eprintln!("Runtime error: {message}");
+        self.stack.clear();
+        Err(VmError::RuntimeError)
     }
 
     fn debug_trace(&self) {

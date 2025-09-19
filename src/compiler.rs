@@ -61,6 +61,13 @@ impl Compiler {
                 Literal::Number(value) => {
                     self.emit_constant(Value::Number(*value), 0);
                 }
+                Literal::Bool(value) => match value {
+                    true => self.emit_byte(OpCode::True, 0),
+                    false => self.emit_byte(OpCode::False, 0),
+                },
+                Literal::Nil => {
+                    self.emit_byte(OpCode::Nil, 0);
+                }
             },
             Expr::Grouping { expression } => {
                 self.compile_expr(expression);

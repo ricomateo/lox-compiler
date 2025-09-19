@@ -20,4 +20,6 @@ pub enum Expr {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Number(f64),
+    Bool(bool),
+    Nil,
 }

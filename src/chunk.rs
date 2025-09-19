@@ -8,6 +8,9 @@ pub enum Value {
 #[derive(Debug, Clone)]
 pub enum OpCode {
     Constant(usize),
+    Nil,
+    True,
+    False,
     Add,
     Subtract,
     Multiply,
@@ -80,6 +83,9 @@ impl Chunk {
             OpCode::Subtract => self.simple_instruction("OP_SUBTRACT", offset),
             OpCode::Multiply => self.simple_instruction("OP_MULTIPLY", offset),
             OpCode::Divide => self.simple_instruction("OP_DIVIDE", offset),
+            OpCode::Nil => self.simple_instruction("OP_NIL", offset),
+            OpCode::True => self.simple_instruction("OP_TRUE", offset),
+            OpCode::False => self.simple_instruction("OP_FALSE", offset),
         }
     }
 

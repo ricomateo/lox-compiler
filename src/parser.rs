@@ -107,6 +107,13 @@ impl Parser {
         Expr::Literal(Literal::Number(value))
     }
 
+    fn string(&mut self) -> Expr {
+        let length = self.previous.clone().unwrap().length;
+        // Remove quotes from string
+        let string = &self.previous.clone().unwrap().lexeme[1..length - 2];
+        Expr::Literal(Literal::String(string.into()))
+    }
+
     fn unary(&mut self) -> Expr {
         let operator = self.previous.clone().unwrap();
         let right = self.parse_precedence(Precedence::Unary);

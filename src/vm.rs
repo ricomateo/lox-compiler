@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, OpCode, Value};
+use crate::chunk::{Chunk, Object, OpCode, Value};
 
 #[derive(Debug)]
 pub struct Vm {
@@ -213,6 +213,7 @@ impl Vm {
                 Value::Number(v) => print!("[ {v} ]"),
                 Value::Bool(v) => print!("[ {v} ]"),
                 Value::Nil => print!("[ nil ]"),
+                Value::Object(Object::String(string)) => print!("[ \"{string}\" ]"),
             }
         }
         println!("");

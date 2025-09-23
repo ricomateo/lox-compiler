@@ -112,6 +112,10 @@ impl Vm {
                 OpCode::False => {
                     self.stack.push(Value::Bool(false));
                 }
+                OpCode::Not => {
+                    let value = self.stack.pop().unwrap();
+                    self.stack.push(Value::Bool(Self::is_falsey(&value)));
+                }
             }
         }
     }
@@ -160,6 +164,11 @@ impl Vm {
         let result = Value::Number(op(a, b));
         self.stack.push(result);
         Ok(())
+    }
+
+    /// nil and false are "falsey", everything else is "truthy"
+    fn is_falsey(value: &Value) -> bool {
+        matches!(value, Value::Nil) || matches!(value, Value::Bool(false))
     }
 
     fn debug_trace(&self) {

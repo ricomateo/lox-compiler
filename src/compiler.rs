@@ -54,6 +54,7 @@ impl Compiler {
 
                 match operator.kind {
                     TokenType::Minus => self.emit_byte(OpCode::Negate, operator.line),
+                    TokenType::Bang => self.emit_byte(OpCode::Not, operator.line),
                     _ => unreachable!(),
                 }
             }

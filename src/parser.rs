@@ -253,6 +253,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         TokenType::False => ParseRule::new(Some(Parser::literal), None, Precedence::None),
         TokenType::True => ParseRule::new(Some(Parser::literal), None, Precedence::None),
         TokenType::Nil => ParseRule::new(Some(Parser::literal), None, Precedence::None),
+        TokenType::Bang => ParseRule::new(Some(Parser::unary), None, Precedence::None),
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }

@@ -15,6 +15,7 @@ pub enum OpCode {
     Subtract,
     Multiply,
     Divide,
+    Not,
     Negate,
     Return,
 }
@@ -86,6 +87,7 @@ impl Chunk {
             OpCode::Nil => self.simple_instruction("OP_NIL", offset),
             OpCode::True => self.simple_instruction("OP_TRUE", offset),
             OpCode::False => self.simple_instruction("OP_FALSE", offset),
+            OpCode::Not => self.simple_instruction("OP_NOT", offset),
         }
     }
 

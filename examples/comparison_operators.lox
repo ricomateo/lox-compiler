@@ -1,0 +1,6 @@
+1 < 2                       // true
+2 > 1                       // true
+3 <= 3                      // true
+4 >= 5                      // false
+5 >= 5                      // true
+3 < 3                        // false

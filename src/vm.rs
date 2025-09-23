@@ -116,6 +116,30 @@ impl Vm {
                     let value = self.stack.pop().unwrap();
                     self.stack.push(Value::Bool(Self::is_falsey(&value)));
                 }
+                OpCode::Equal => {
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    self.stack.push(Value::Bool(Self::values_equal(&a, &b)));
+                }
+                // TODO: extract repeated code
+                OpCode::Greater => {
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    if let (Value::Number(a), Value::Number(b)) = (a, b) {
+                        self.stack.push(Value::Bool(a > b));
+                    } else {
+                        return self.runtime_error("Operands must be numbers.");
+                    }
+                }
+                OpCode::Less => {
+                    let b = self.stack.pop().unwrap();
+                    let a = self.stack.pop().unwrap();
+                    if let (Value::Number(a), Value::Number(b)) = (a, b) {
+                        self.stack.push(Value::Bool(a < b));
+                    } else {
+                        return self.runtime_error("Operands must be numbers.");
+                    }
+                }
             }
         }
     }
@@ -169,6 +193,15 @@ impl Vm {
     /// nil and false are "falsey", everything else is "truthy"
     fn is_falsey(value: &Value) -> bool {
         matches!(value, Value::Nil) || matches!(value, Value::Bool(false))
+    }
+
+    fn values_equal(a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Nil, Value::Nil) => true,
+            _ => false,
+        }
     }
 
     fn debug_trace(&self) {

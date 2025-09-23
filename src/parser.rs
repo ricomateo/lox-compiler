@@ -254,6 +254,15 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         TokenType::True => ParseRule::new(Some(Parser::literal), None, Precedence::None),
         TokenType::Nil => ParseRule::new(Some(Parser::literal), None, Precedence::None),
         TokenType::Bang => ParseRule::new(Some(Parser::unary), None, Precedence::None),
+        TokenType::EqualEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Equality),
+        TokenType::BangEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Equality),
+        TokenType::Greater => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
+        TokenType::GreaterEqual => {
+            ParseRule::new(None, Some(Parser::binary), Precedence::Comparison)
+        }
+        TokenType::Less => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
+        TokenType::LessEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
+
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }

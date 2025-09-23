@@ -46,6 +46,30 @@ impl Compiler {
                     TokenType::Slash => {
                         self.emit_byte(OpCode::Divide, operator.line);
                     }
+                    TokenType::EqualEqual => {
+                        self.emit_byte(OpCode::Equal, operator.line);
+                    }
+                    TokenType::BangEqual => {
+                        // Syntactic sugar: a != b  is the same as !(a == b)
+                        self.emit_byte(OpCode::Equal, operator.line);
+                        self.emit_byte(OpCode::Not, operator.line);
+                    }
+                    TokenType::Greater => {
+                        self.emit_byte(OpCode::Greater, operator.line);
+                    }
+                    TokenType::GreaterEqual => {
+                        // Syntactic sugar: a >= b  is the same as !(a < b)
+                        self.emit_byte(OpCode::Less, operator.line);
+                        self.emit_byte(OpCode::Not, operator.line);
+                    }
+                    TokenType::Less => {
+                        self.emit_byte(OpCode::Less, operator.line);
+                    }
+                    TokenType::LessEqual => {
+                        // Syntactic sugar: a <= b  is the same as !(a > b)
+                        self.emit_byte(OpCode::Greater, operator.line);
+                        self.emit_byte(OpCode::Not, operator.line);
+                    }
                     _ => unreachable!(),
                 }
             }

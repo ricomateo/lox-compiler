@@ -1,11 +1,11 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Number(f64),
     Bool(bool),
     Nil,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum OpCode {
     Constant(usize),
     Nil,
@@ -28,7 +28,7 @@ pub enum OpCode {
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
-    chunk: Vec<OpCode>,
+    pub chunk: Vec<OpCode>,
     pub constants: Vec<Value>,
     lines: Vec<usize>,
 }

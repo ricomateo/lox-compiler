@@ -65,7 +65,11 @@ impl Vm {
                     //     }
                     //     _ => return Err(VmError::RuntimeError),
                     // }
-                    self.binary_op_number(|a, b| a + b)?;
+                    if self.stack_operands_are_numbers() {
+                        self.binary_op_number(|a, b| a + b)?;
+                    } else if self.stack_operands_are_strings() {
+                        self.concatenate_strings()?;
+                    }
                 }
                 OpCode::Subtract => {
                     // let b = self.stack.pop().unwrap();
@@ -200,8 +204,35 @@ impl Vm {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
+            (Value::Object(Object::String(a)), Value::Object(Object::String(b))) => *a == *b,
             _ => false,
         }
+    }
+
+    /// Checks the two first stack operands and returns whether both of them are numbers
+    fn stack_operands_are_numbers(&mut self) -> bool {
+        let b = self.peek(0);
+        let a = self.peek(1);
+        matches!(a, Some(Value::Number(_))) && matches!(b, Some(Value::Number(_)))
+    }
+
+    /// Checks the two first stack operands and returns whether both of them are strings
+    fn stack_operands_are_strings(&mut self) -> bool {
+        let b = self.peek(0);
+        let a = self.peek(1);
+        matches!(a, Some(Value::Object(Object::String(_))))
+            && matches!(b, Some(Value::Object(Object::String(_))))
+    }
+
+    fn concatenate_strings(&mut self) -> Result<(), VmError> {
+        let b = self.stack.pop().unwrap();
+        let a = self.stack.pop().unwrap();
+        let (Value::Object(Object::String(a)), Value::Object(Object::String(b))) = (a, b) else {
+            return self.runtime_error("Operands must be strings.");
+        };
+        let concatenated_string = Value::Object(Object::String(format!("{a}{b}")));
+        self.stack.push(concatenated_string);
+        Ok(())
     }
 
     fn debug_trace(&self) {

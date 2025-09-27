@@ -46,6 +46,12 @@ pub struct Parser {
     panic_mode: bool,
 }
 
+#[derive(Debug)]
+pub enum ParseError {
+    ExpectedExpression,
+    ExpectedNumber,
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         let mut current = None;
@@ -67,22 +73,21 @@ impl Parser {
     pub fn parse(&mut self) -> Vec<Declaration> {
         let mut declarations = Vec::new();
         while !self.matches(TokenType::Eof) {
-            let declaration = self.declaration();
-            //  else {
-            //     // Jump to the next statement in case of error
-            //     // self.synchronize();
-            //     continue;
-            // };
+            let Ok(declaration) = self.declaration() else {
+                println!("error");
+                self.synchronize();
+                continue;
+            };
             declarations.push(declaration);
         }
         declarations
     }
 
-    fn declaration(&mut self) -> Declaration {
+    fn declaration(&mut self) -> Result<Declaration, ParseError> {
         self.statement()
     }
 
-    fn statement(&mut self) -> Declaration {
+    fn statement(&mut self) -> Result<Declaration, ParseError> {
         if self.matches(TokenType::Print) {
             return self.print_statement();
         } else {
@@ -90,10 +95,34 @@ impl Parser {
         }
     }
 
-    fn expression_statement(&mut self) -> Declaration {
-        let expr = self.expression();
+    fn synchronize(&mut self) {
+        self.panic_mode = false;
+
+        while self.current.clone().unwrap().kind != TokenType::Eof {
+            if self.previous.clone().unwrap().kind == TokenType::Semicolon {
+                return;
+            }
+            match self.current.clone().unwrap().kind {
+                TokenType::Class
+                | TokenType::Fun
+                | TokenType::Var
+                | TokenType::For
+                | TokenType::If
+                | TokenType::While
+                | TokenType::Print
+                | TokenType::Return => {
+                    return;
+                }
+                _ => (),
+            }
+            self.advance();
+        }
+    }
+
+    fn expression_statement(&mut self) -> Result<Declaration, ParseError> {
+        let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.");
-        Declaration::Statement(Statement::ExprStatement(expr))
+        Ok(Declaration::Statement(Statement::ExprStatement(expr)))
     }
 
     fn matches(&mut self, token_type: TokenType) -> bool {
@@ -108,13 +137,13 @@ impl Parser {
         self.current.clone().unwrap().kind == token_type
     }
 
-    fn print_statement(&mut self) -> Declaration {
-        let expr = self.expression();
+    fn print_statement(&mut self) -> Result<Declaration, ParseError> {
+        let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after value.");
-        Declaration::Statement(Statement::PrintStatement(expr))
+        Ok(Declaration::Statement(Statement::PrintStatement(expr)))
     }
 
-    fn parse_precedence(&mut self, precedence: Precedence) -> Expr {
+    fn parse_precedence(&mut self, precedence: Precedence) -> Result<Expr, ParseError> {
         self.advance();
 
         if self.previous.is_none() {
@@ -125,79 +154,79 @@ impl Parser {
         let prefix_rule = get_rule(previous_token_type).prefix;
         if prefix_rule.is_none() {
             self.error("Expect expression.");
-            return Expr::Literal(Literal::Number(0.0));
+            return Err(ParseError::ExpectedExpression);
         }
 
-        let mut expr = prefix_rule.unwrap()(self);
+        let mut expr = prefix_rule.unwrap()(self)?;
 
         while precedence <= get_rule(self.current.clone().unwrap().kind).precedence {
             self.advance();
             let infix_rule = get_rule(self.previous.clone().unwrap().kind).infix;
             if let Some(rule) = infix_rule {
-                expr = rule(self, expr);
+                expr = rule(self, expr)?;
             }
         }
 
-        expr
+        Ok(expr)
     }
 
     // ---------- Parsing rules ----------
 
-    pub fn expression(&mut self) -> Expr {
+    pub fn expression(&mut self) -> Result<Expr, ParseError> {
         self.parse_precedence(Precedence::Assignment)
     }
 
-    fn number(&mut self) -> Expr {
+    fn number(&mut self) -> Result<Expr, ParseError> {
         let value = self
             .previous
             .clone()
             .unwrap()
             .lexeme
             .parse::<f64>()
-            .unwrap();
-        Expr::Literal(Literal::Number(value))
+            .map_err(|_| ParseError::ExpectedNumber)?;
+        Ok(Expr::Literal(Literal::Number(value)))
     }
 
-    fn string(&mut self) -> Expr {
+    fn string(&mut self) -> Result<Expr, ParseError> {
         let length = self.previous.clone().unwrap().length;
         // Remove quotes from string
         let string = &self.previous.clone().unwrap().lexeme[1..length - 1];
-        Expr::Literal(Literal::String(string.into()))
+        Ok(Expr::Literal(Literal::String(string.into())))
     }
 
-    fn unary(&mut self) -> Expr {
+    fn unary(&mut self) -> Result<Expr, ParseError> {
         let operator = self.previous.clone().unwrap();
-        let right = self.parse_precedence(Precedence::Unary);
-        Expr::Unary {
+        let right = self.parse_precedence(Precedence::Unary)?;
+        Ok(Expr::Unary {
             operator,
             right: Box::new(right),
-        }
+        })
     }
 
-    fn binary(&mut self, left: Expr) -> Expr {
+    fn binary(&mut self, left: Expr) -> Result<Expr, ParseError> {
         let operator = self.previous.clone().unwrap();
         let rule = get_rule(operator.kind);
-        let right = self.parse_precedence(rule.precedence.next());
-        Expr::Binary {
+        let right = self.parse_precedence(rule.precedence.next())?;
+        Ok(Expr::Binary {
             left: Box::new(left),
             operator,
             right: Box::new(right),
-        }
+        })
     }
 
-    fn grouping(&mut self) -> Expr {
-        let expr = self.expression();
+    fn grouping(&mut self) -> Result<Expr, ParseError> {
+        let expr = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after expression.");
-        Expr::Grouping {
+        Ok(Expr::Grouping {
             expression: Box::new(expr),
-        }
+        })
     }
 
-    fn literal(&mut self) -> Expr {
+    fn literal(&mut self) -> Result<Expr, ParseError> {
         match &self.previous.clone().unwrap().kind {
-            TokenType::False => Expr::Literal(Literal::Bool(false)),
-            TokenType::True => Expr::Literal(Literal::Bool(true)),
-            TokenType::Nil => Expr::Literal(Literal::Nil),
+            TokenType::False => Ok(Expr::Literal(Literal::Bool(false))),
+            TokenType::True => Ok(Expr::Literal(Literal::Bool(true))),
+            TokenType::Nil => Ok(Expr::Literal(Literal::Nil)),
             _ => unreachable!(),
         }
     }
@@ -279,15 +308,15 @@ impl Parser {
 }
 
 struct ParseRule {
-    prefix: Option<fn(&mut Parser) -> Expr>,
-    infix: Option<fn(&mut Parser, Expr) -> Expr>,
+    prefix: Option<fn(&mut Parser) -> Result<Expr, ParseError>>,
+    infix: Option<fn(&mut Parser, Expr) -> Result<Expr, ParseError>>,
     precedence: Precedence,
 }
 
 impl ParseRule {
     fn new(
-        prefix: Option<fn(&mut Parser) -> Expr>,
-        infix: Option<fn(&mut Parser, Expr) -> Expr>,
+        prefix: Option<fn(&mut Parser) -> Result<Expr, ParseError>>,
+        infix: Option<fn(&mut Parser, Expr) -> Result<Expr, ParseError>>,
         precedence: Precedence,
     ) -> Self {
         Self {
@@ -335,7 +364,7 @@ mod tests {
         let mut scanner = Scanner::new(source.into());
         let tokens = scanner.scan();
         let mut parser = Parser::new(tokens);
-        parser.expression()
+        parser.expression().unwrap()
     }
 
     #[test]

@@ -67,7 +67,7 @@ impl Parser {
     pub fn parse(&mut self) -> Vec<Declaration> {
         let mut declarations = Vec::new();
         while !self.matches(TokenType::Eof) {
-            let declaration = self.declaration().unwrap();
+            let declaration = self.declaration();
             //  else {
             //     // Jump to the next statement in case of error
             //     // self.synchronize();
@@ -78,15 +78,22 @@ impl Parser {
         declarations
     }
 
-    fn statement(&mut self) -> Option<Declaration> {
-        if self.matches(TokenType::Print) {
-            return Some(self.print_statement());
-        }
-        None
+    fn declaration(&mut self) -> Declaration {
+        self.statement()
     }
 
-    fn declaration(&mut self) -> Option<Declaration> {
-        self.statement()
+    fn statement(&mut self) -> Declaration {
+        if self.matches(TokenType::Print) {
+            return self.print_statement();
+        } else {
+            return self.expression_statement();
+        }
+    }
+
+    fn expression_statement(&mut self) -> Declaration {
+        let expr = self.expression();
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
+        Declaration::Statement(Statement::ExprStatement(expr))
     }
 
     fn matches(&mut self, token_type: TokenType) -> bool {

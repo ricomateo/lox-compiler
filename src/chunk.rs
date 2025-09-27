@@ -17,6 +17,7 @@ pub enum OpCode {
     Nil,
     True,
     False,
+    Pop,
     Add,
     Subtract,
     Multiply,
@@ -105,6 +106,7 @@ impl Chunk {
             OpCode::Greater => self.simple_instruction("OP_GREATER", offset),
             OpCode::Less => self.simple_instruction("OP_LESS", offset),
             OpCode::Print => self.simple_instruction("OP_PRINT", offset),
+            OpCode::Pop => self.simple_instruction("OP_POP", offset),
         }
     }
 

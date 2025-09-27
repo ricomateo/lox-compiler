@@ -147,6 +147,10 @@ impl Vm {
                     // TODO: Replace this with a print_value function
                     println!("{value:?}");
                 }
+                OpCode::Pop => {
+                    // Pop the top of the stack
+                    self.stack.pop();
+                }
             }
         }
     }

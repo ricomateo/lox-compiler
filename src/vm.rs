@@ -263,6 +263,8 @@ mod tests {
     use super::*;
     use crate::chunk::{Chunk, OpCode, Value};
 
+    /// Creates and run a vm with the given chunk, checks its result is ok
+    /// and returns the value at the top of the stack
     fn run_chunk_and_return_stack_top(chunk: Chunk) -> Option<Value> {
         let mut vm = Vm::new(chunk);
         let result = vm.run();
@@ -270,16 +272,31 @@ mod tests {
         vm.peek(0).cloned()
     }
 
+    /// Creates a chunk with the opcodes to represent the operation formed by the
+    /// given operands and operator, and adds the Return opcode at the end.
+    fn chunk_with_operands_and_operator(a: Value, b: Value, operator: OpCode) -> Chunk {
+        let mut chunk = Chunk::new();
+        // Add operand `a`
+        let constant_index = chunk.add_constant(a);
+        chunk.write(OpCode::Constant(constant_index), 0);
+
+        // Add operand `b`
+        let constant_index = chunk.add_constant(b);
+        chunk.write(OpCode::Constant(constant_index), 0);
+
+        // Add operator
+        chunk.write(operator, 0);
+        chunk.write(OpCode::Return, 0);
+        chunk
+    }
+
     #[test]
     fn test_number_addition() {
         // Test 2 + 3 equals 5
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(3.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Add, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Add;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Number(5.0);
@@ -289,13 +306,10 @@ mod tests {
     #[test]
     fn test_number_subtraction() {
         // Test 2 - 3 equals -1
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(3.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Subtract, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Subtract;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Number(-1.0);
@@ -305,13 +319,10 @@ mod tests {
     #[test]
     fn test_number_multiplication() {
         // Test 2 * 3 equals 6
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(3.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Multiply, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Multiply;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Number(6.0);
@@ -321,13 +332,10 @@ mod tests {
     #[test]
     fn test_number_division() {
         // Test 8 / 4 equals 2
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(8.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(4.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Divide, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(8.0);
+        let b = Value::Number(4.0);
+        let operator = OpCode::Divide;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Number(2.0);
@@ -337,13 +345,10 @@ mod tests {
     #[test]
     fn test_string_concatenation() {
         // Test "hello" + "world" equals "helloworld"
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Object(Object::String("hello".into())));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Object(Object::String("world".into())));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Add, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Object(Object::String("hello".into()));
+        let b = Value::Object(Object::String("world".into()));
+        let operator = OpCode::Add;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Object(Object::String("helloworld".into()));
@@ -353,26 +358,20 @@ mod tests {
     #[test]
     fn test_number_greater() {
         // Test 2 > 1 returns true
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(1.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Greater, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(1.0);
+        let operator = OpCode::Greater;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
         // Test 1 > 2 returns false
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(1.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Greater, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(1.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Greater;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(false);
@@ -382,26 +381,20 @@ mod tests {
     #[test]
     fn test_number_less() {
         // Test 1 < 2 returns true
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(1.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Less, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(1.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Less;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
         // Test 2 < 1 returns false
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(1.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Less, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(1.0);
+        let operator = OpCode::Less;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(false);
@@ -411,26 +404,43 @@ mod tests {
     #[test]
     fn test_numbers_equal() {
         // Test 2 equals 2 returns true
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Equal, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
         // Test 2 equals 0 returns false
-        let mut chunk = Chunk::new();
-        let constant_index = chunk.add_constant(Value::Number(2.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        let constant_index = chunk.add_constant(Value::Number(0.0));
-        chunk.write(OpCode::Constant(constant_index), 0);
-        chunk.write(OpCode::Equal, 0);
-        chunk.write(OpCode::Return, 0);
+        let a = Value::Number(2.0);
+        let b = Value::Number(0.0);
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_strings_equal() {
+        // Test "hello" equals "hello" returns true
+        let a = Value::Object(Object::String("hello".into()));
+        let b = Value::Object(Object::String("hello".into()));
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
+
+        // Test "hello" equals "world" returns false
+        let a = Value::Object(Object::String("hello".into()));
+        let b = Value::Object(Object::String("world".into()));
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(false);

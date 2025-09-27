@@ -110,7 +110,7 @@ impl Parser {
     fn string(&mut self) -> Expr {
         let length = self.previous.clone().unwrap().length;
         // Remove quotes from string
-        let string = &self.previous.clone().unwrap().lexeme[1..length - 2];
+        let string = &self.previous.clone().unwrap().lexeme[1..length - 1];
         Expr::Literal(Literal::String(string.into()))
     }
 
@@ -269,7 +269,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         }
         TokenType::Less => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
         TokenType::LessEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
-
+        TokenType::String => ParseRule::new(Some(Parser::string), None, Precedence::None),
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }
@@ -292,6 +292,13 @@ mod tests {
         let source = "1";
         let ast = scan_and_parse(source);
         assert_eq!(ast, Expr::Literal(Literal::Number(1.0)))
+    }
+
+    #[test]
+    fn test_string() {
+        let source = "\"hello\"";
+        let ast = scan_and_parse(source);
+        assert_eq!(ast, Expr::Literal(Literal::String("hello".into())))
     }
 
     #[test]

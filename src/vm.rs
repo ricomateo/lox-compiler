@@ -50,8 +50,6 @@ impl Vm {
                     }
                 }
                 OpCode::Return => {
-                    // let value = self.stack.pop().unwrap();
-                    // println!("{value:?}");
                     return Ok(());
                 }
                 // TODO: remove unwraps
@@ -143,6 +141,11 @@ impl Vm {
                     } else {
                         return self.runtime_error("Operands must be numbers.");
                     }
+                }
+                OpCode::Print => {
+                    let value = self.stack.pop().unwrap();
+                    // TODO: Replace this with a print_value function
+                    println!("{value:?}");
                 }
             }
         }

@@ -65,13 +65,13 @@ impl Rlox {
         // Phase 2: Parsing
         log::info!("Parsing...");
         let mut parser = Parser::new(tokens);
-        let ast = parser.expression();
-        log::debug!("AST: {:#?}", ast);
+        let declarations = parser.parse();
+        log::debug!("Declarations: {:#?}", declarations);
 
         // Phase 3: Compilation
         log::info!("Compiling...");
         let mut compiler = Compiler::new();
-        let chunk = compiler.compile(&ast);
+        let chunk = compiler.compile(&declarations);
 
         // Phase 4: Running
         log::info!("Running...");

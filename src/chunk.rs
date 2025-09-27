@@ -23,6 +23,7 @@ pub enum OpCode {
     Divide,
     Not,
     Negate,
+    Print,
     // TODO: Create instructions for NotEqual, GreaterEqual and LessEqual
     // We could create instructions for NotEqual, GreaterEqual and LessEqual but we can implement them using existing instructions as syntactic sugar
     // The VM would execute faster if we did
@@ -103,6 +104,7 @@ impl Chunk {
             OpCode::Equal => self.simple_instruction("OP_EQUAL", offset),
             OpCode::Greater => self.simple_instruction("OP_GREATER", offset),
             OpCode::Less => self.simple_instruction("OP_LESS", offset),
+            OpCode::Print => self.simple_instruction("OP_PRINT", offset),
         }
     }
 

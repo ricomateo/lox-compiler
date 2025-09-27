@@ -1,4 +1,5 @@
 use crate::{
+    declaration::{Declaration, Statement},
     expr::{Expr, Literal},
     scanner::{Token, TokenType},
 };
@@ -61,6 +62,49 @@ impl Parser {
             had_error: false,
             panic_mode: false,
         }
+    }
+
+    pub fn parse(&mut self) -> Vec<Declaration> {
+        let mut declarations = Vec::new();
+        while !self.matches(TokenType::Eof) {
+            let declaration = self.declaration().unwrap();
+            //  else {
+            //     // Jump to the next statement in case of error
+            //     // self.synchronize();
+            //     continue;
+            // };
+            declarations.push(declaration);
+        }
+        declarations
+    }
+
+    fn statement(&mut self) -> Option<Declaration> {
+        if self.matches(TokenType::Print) {
+            return Some(self.print_statement());
+        }
+        None
+    }
+
+    fn declaration(&mut self) -> Option<Declaration> {
+        self.statement()
+    }
+
+    fn matches(&mut self, token_type: TokenType) -> bool {
+        if !self.check(token_type) {
+            return false;
+        }
+        self.advance();
+        true
+    }
+
+    fn check(&self, token_type: TokenType) -> bool {
+        self.current.clone().unwrap().kind == token_type
+    }
+
+    fn print_statement(&mut self) -> Declaration {
+        let expr = self.expression();
+        self.consume(TokenType::Semicolon, "Expect ';' after value.");
+        Declaration::Statement(Statement::PrintStatement(expr))
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) -> Expr {

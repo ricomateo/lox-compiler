@@ -135,6 +135,15 @@ impl Parser {
         }
     }
 
+    fn literal(&mut self) -> Expr {
+        match &self.previous.clone().unwrap().kind {
+            TokenType::False => Expr::Literal(Literal::Bool(false)),
+            TokenType::True => Expr::Literal(Literal::Bool(true)),
+            TokenType::Nil => Expr::Literal(Literal::Nil),
+            _ => unreachable!(),
+        }
+    }
+
     // ---------- Helpers ----------
 
     fn advance(&mut self) {
@@ -241,6 +250,19 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         TokenType::Slash => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
         TokenType::Star => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
         TokenType::Number => ParseRule::new(Some(Parser::number), None, Precedence::None),
+        TokenType::False => ParseRule::new(Some(Parser::literal), None, Precedence::None),
+        TokenType::True => ParseRule::new(Some(Parser::literal), None, Precedence::None),
+        TokenType::Nil => ParseRule::new(Some(Parser::literal), None, Precedence::None),
+        TokenType::Bang => ParseRule::new(Some(Parser::unary), None, Precedence::None),
+        TokenType::EqualEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Equality),
+        TokenType::BangEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Equality),
+        TokenType::Greater => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
+        TokenType::GreaterEqual => {
+            ParseRule::new(None, Some(Parser::binary), Precedence::Comparison)
+        }
+        TokenType::Less => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
+        TokenType::LessEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
+
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }

@@ -1,22 +1,34 @@
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Number(f64),
+    Bool(bool),
+    Nil,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum OpCode {
     Constant(usize),
+    Nil,
+    True,
+    False,
     Add,
     Subtract,
     Multiply,
     Divide,
+    Not,
     Negate,
+    // TODO: Create instructions for NotEqual, GreaterEqual and LessEqual
+    // We could create instructions for NotEqual, GreaterEqual and LessEqual but we can implement them using existing instructions as syntactic sugar
+    // The VM would execute faster if we did
+    Equal,
+    Greater,
+    Less,
     Return,
 }
 
 #[derive(Debug, Clone)]
 pub struct Chunk {
-    chunk: Vec<OpCode>,
+    pub chunk: Vec<OpCode>,
     pub constants: Vec<Value>,
     lines: Vec<usize>,
 }
@@ -78,6 +90,13 @@ impl Chunk {
             OpCode::Subtract => self.simple_instruction("OP_SUBTRACT", offset),
             OpCode::Multiply => self.simple_instruction("OP_MULTIPLY", offset),
             OpCode::Divide => self.simple_instruction("OP_DIVIDE", offset),
+            OpCode::Nil => self.simple_instruction("OP_NIL", offset),
+            OpCode::True => self.simple_instruction("OP_TRUE", offset),
+            OpCode::False => self.simple_instruction("OP_FALSE", offset),
+            OpCode::Not => self.simple_instruction("OP_NOT", offset),
+            OpCode::Equal => self.simple_instruction("OP_EQUAL", offset),
+            OpCode::Greater => self.simple_instruction("OP_GREATER", offset),
+            OpCode::Less => self.simple_instruction("OP_LESS", offset),
         }
     }
 
@@ -87,8 +106,15 @@ impl Chunk {
     }
 
     fn constant_instruction(&self, name: &str, offset: usize, constant_index: usize) -> usize {
-        let Value::Number(value) = &self.constants[constant_index];
-        println!("{:<16} {:>4} '{}'", name, constant_index, value);
+        // let Value::Number(value) = &self.constants[constant_index];
+        let value = &self.constants[constant_index];
+
+        match value {
+            Value::Number(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
+            Value::Bool(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
+            Value::Nil => println!("{:<16} {:>4} 'nil'", name, constant_index),
+        }
+
         // In the book, this function returns offset + 2 because the constant index is stored separately from Opcode::Constant
         // In our implementation, we combine them into a single element (Opcode::Constant(constant_index)), so we return offset + 1
         offset + 1

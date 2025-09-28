@@ -22,4 +22,5 @@ pub enum Literal {
     Number(f64),
     Bool(bool),
     Nil,
+    String(String),
 }

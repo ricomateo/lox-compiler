@@ -1,5 +1,5 @@
 use crate::{
-    chunk::{Chunk, OpCode, Value},
+    chunk::{Chunk, Object, OpCode, Value},
     expr::Expr,
 };
 
@@ -122,6 +122,11 @@ impl Compiler {
             },
             Literal::Nil => {
                 self.emit_byte(OpCode::Nil, 0);
+            }
+            Literal::String(string) => {
+                // TODO: set the right line here
+                let line = 0;
+                self.emit_constant(Value::Object(Object::String(string.clone())), line);
             }
         }
     }

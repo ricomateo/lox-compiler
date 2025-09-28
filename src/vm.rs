@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, OpCode, Value};
+use crate::chunk::{Chunk, Object, OpCode, Value};
 
 #[derive(Debug)]
 pub struct Vm {
@@ -50,8 +50,8 @@ impl Vm {
                     }
                 }
                 OpCode::Return => {
-                    let value = self.stack.pop().unwrap();
-                    println!("{value:?}");
+                    // let value = self.stack.pop().unwrap();
+                    // println!("{value:?}");
                     return Ok(());
                 }
                 // TODO: remove unwraps
@@ -65,7 +65,11 @@ impl Vm {
                     //     }
                     //     _ => return Err(VmError::RuntimeError),
                     // }
-                    self.binary_op_number(|a, b| a + b)?;
+                    if self.stack_operands_are_numbers() {
+                        self.binary_op_number(|a, b| a + b)?;
+                    } else if self.stack_operands_are_strings() {
+                        self.concatenate_strings()?;
+                    }
                 }
                 OpCode::Subtract => {
                     // let b = self.stack.pop().unwrap();
@@ -200,8 +204,35 @@ impl Vm {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
+            (Value::Object(Object::String(a)), Value::Object(Object::String(b))) => *a == *b,
             _ => false,
         }
+    }
+
+    /// Checks the two first stack operands and returns whether both of them are numbers
+    fn stack_operands_are_numbers(&mut self) -> bool {
+        let b = self.peek(0);
+        let a = self.peek(1);
+        matches!(a, Some(Value::Number(_))) && matches!(b, Some(Value::Number(_)))
+    }
+
+    /// Checks the two first stack operands and returns whether both of them are strings
+    fn stack_operands_are_strings(&mut self) -> bool {
+        let b = self.peek(0);
+        let a = self.peek(1);
+        matches!(a, Some(Value::Object(Object::String(_))))
+            && matches!(b, Some(Value::Object(Object::String(_))))
+    }
+
+    fn concatenate_strings(&mut self) -> Result<(), VmError> {
+        let b = self.stack.pop().unwrap();
+        let a = self.stack.pop().unwrap();
+        let (Value::Object(Object::String(a)), Value::Object(Object::String(b))) = (a, b) else {
+            return self.runtime_error("Operands must be strings.");
+        };
+        let concatenated_string = Value::Object(Object::String(format!("{a}{b}")));
+        self.stack.push(concatenated_string);
+        Ok(())
     }
 
     fn debug_trace(&self) {
@@ -213,6 +244,7 @@ impl Vm {
                 Value::Number(v) => print!("[ {v} ]"),
                 Value::Bool(v) => print!("[ {v} ]"),
                 Value::Nil => print!("[ nil ]"),
+                Value::Object(Object::String(string)) => print!("[ \"{string}\" ]"),
             }
         }
         println!("");
@@ -224,4 +256,194 @@ impl Vm {
 pub enum VmError {
     CompileError,
     RuntimeError,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chunk::{Chunk, OpCode, Value};
+
+    /// Creates and run a vm with the given chunk, checks its result is ok
+    /// and returns the value at the top of the stack
+    fn run_chunk_and_return_stack_top(chunk: Chunk) -> Option<Value> {
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+        vm.peek(0).cloned()
+    }
+
+    /// Creates a chunk with the opcodes to represent the operation formed by the
+    /// given operands and operator, and adds the Return opcode at the end.
+    fn chunk_with_operands_and_operator(a: Value, b: Value, operator: OpCode) -> Chunk {
+        let mut chunk = Chunk::new();
+        // Add operand `a`
+        let constant_index = chunk.add_constant(a);
+        chunk.write(OpCode::Constant(constant_index), 0);
+
+        // Add operand `b`
+        let constant_index = chunk.add_constant(b);
+        chunk.write(OpCode::Constant(constant_index), 0);
+
+        // Add operator
+        chunk.write(operator, 0);
+        chunk.write(OpCode::Return, 0);
+        chunk
+    }
+
+    #[test]
+    fn test_number_addition() {
+        // Test 2 + 3 equals 5
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Add;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Number(5.0);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_number_subtraction() {
+        // Test 2 - 3 equals -1
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Subtract;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Number(-1.0);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_number_multiplication() {
+        // Test 2 * 3 equals 6
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Multiply;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Number(6.0);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_number_division() {
+        // Test 8 / 4 equals 2
+        let a = Value::Number(8.0);
+        let b = Value::Number(4.0);
+        let operator = OpCode::Divide;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Number(2.0);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_string_concatenation() {
+        // Test "hello" + "world" equals "helloworld"
+        let a = Value::Object(Object::String("hello".into()));
+        let b = Value::Object(Object::String("world".into()));
+        let operator = OpCode::Add;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Object(Object::String("helloworld".into()));
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_number_greater() {
+        // Test 2 > 1 returns true
+        let a = Value::Number(2.0);
+        let b = Value::Number(1.0);
+        let operator = OpCode::Greater;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
+
+        // Test 1 > 2 returns false
+        let a = Value::Number(1.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Greater;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_number_less() {
+        // Test 1 < 2 returns true
+        let a = Value::Number(1.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Less;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
+
+        // Test 2 < 1 returns false
+        let a = Value::Number(2.0);
+        let b = Value::Number(1.0);
+        let operator = OpCode::Less;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_numbers_equal() {
+        // Test 2 equals 2 returns true
+        let a = Value::Number(2.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
+
+        // Test 2 equals 0 returns false
+        let a = Value::Number(2.0);
+        let b = Value::Number(0.0);
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
+
+    #[test]
+    fn test_strings_equal() {
+        // Test "hello" equals "hello" returns true
+        let a = Value::Object(Object::String("hello".into()));
+        let b = Value::Object(Object::String("hello".into()));
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
+
+        // Test "hello" equals "world" returns false
+        let a = Value::Object(Object::String("hello".into()));
+        let b = Value::Object(Object::String("world".into()));
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+
+        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
 }

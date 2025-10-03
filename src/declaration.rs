@@ -2,7 +2,10 @@ use crate::expr::Expr;
 
 #[derive(Debug)]
 pub enum Declaration {
-    VariableDeclaration,
+    VariableDeclaration {
+        name: String,
+        initializer: Option<Expr>,
+    },
     Statement(Statement),
 }
 

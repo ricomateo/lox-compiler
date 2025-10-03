@@ -84,6 +84,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Declaration, ParseError> {
+        if self.matches(TokenType::Var) {
+            return self.var_declaration();
+        }
         self.statement()
     }
 
@@ -93,6 +96,32 @@ impl Parser {
         } else {
             return self.expression_statement();
         }
+    }
+
+    fn var_declaration(&mut self) -> Result<Declaration, ParseError> {
+        let token = self.parse_variable("Expect variable name.")?;
+
+        let initializer = if self.matches(TokenType::Equal) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expect ';' after variable declaration.",
+        );
+
+        Ok(Declaration::VariableDeclaration {
+            name: token.lexeme,
+            initializer,
+        })
+    }
+
+    fn parse_variable(&mut self, error_message: &str) -> Result<Token, ParseError> {
+        let token = self.current.clone().unwrap();
+        self.consume(TokenType::Identifier, error_message);
+        Ok(token)
     }
 
     fn synchronize(&mut self) {

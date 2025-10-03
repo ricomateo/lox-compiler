@@ -31,6 +31,7 @@ pub enum OpCode {
     Equal,
     Greater,
     Less,
+    DefineGlobal(usize),
     Return,
 }
 
@@ -107,6 +108,9 @@ impl Chunk {
             OpCode::Less => self.simple_instruction("OP_LESS", offset),
             OpCode::Print => self.simple_instruction("OP_PRINT", offset),
             OpCode::Pop => self.simple_instruction("OP_POP", offset),
+            OpCode::DefineGlobal(index) => {
+                self.constant_instruction("OP_DEFINE_GLOBAL", offset, *index)
+            }
         }
     }
 

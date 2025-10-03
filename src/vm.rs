@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::chunk::{Chunk, Object, OpCode, Value};
 
 #[derive(Debug)]
@@ -5,6 +7,7 @@ pub struct Vm {
     chunk: Chunk,
     instruction_pointer: usize,
     stack: Vec<Value>,
+    pub globals: HashMap<String, Value>,
 }
 
 impl Vm {
@@ -13,6 +16,7 @@ impl Vm {
             chunk,
             instruction_pointer: 0,
             stack: Vec::new(),
+            globals: HashMap::new(),
         }
     }
 
@@ -150,6 +154,14 @@ impl Vm {
                 OpCode::Pop => {
                     // Pop the top of the stack
                     self.stack.pop();
+                }
+                OpCode::DefineGlobal(constant_index) => {
+                    let name = match self.chunk.constant_at(constant_index as usize) {
+                        Value::Object(Object::String(s)) => s.clone(),
+                        _ => return self.runtime_error("Variable name must be a string."),
+                    };
+                    let value = self.stack.pop().unwrap();
+                    self.globals.insert(name, value);
                 }
             }
         }

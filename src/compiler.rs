@@ -39,7 +39,17 @@ impl Compiler {
                 self.compile_expr(&expr);
                 self.emit_byte(OpCode::Pop, line);
             }
-            _ => todo!(),
+            Declaration::VariableDeclaration { name, initializer } => {
+                let line = 0;
+                if let Some(expr) = initializer {
+                    self.compile_expr(expr);
+                } else {
+                    self.emit_byte(OpCode::Nil, line);
+                }
+
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::DefineGlobal(constant_index), line);
+            }
         }
     }
 
@@ -81,6 +91,10 @@ impl Compiler {
 
     fn end_compiler(&mut self) {
         self.emit_byte(OpCode::Return, 0);
+    }
+
+    fn identifier_constant(&mut self, name: String) -> usize {
+        self.make_constant(Value::Object(Object::String(name)))
     }
 
     fn compile_binary(&mut self, operator: &Token, left: &Expr, right: &Expr) {

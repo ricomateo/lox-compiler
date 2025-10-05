@@ -310,7 +310,12 @@ pub enum VmError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::{Chunk, OpCode, Value};
+    use crate::{
+        chunk::{Chunk, OpCode, Value},
+        compiler::Compiler,
+        parser::Parser,
+        scanner::Scanner,
+    };
 
     /// Creates and run a vm with the given chunk, checks its result is ok
     /// and returns the value at the top of the stack
@@ -494,5 +499,53 @@ mod tests {
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(false);
         assert_eq!(stack_top, expected_value);
+    }
+
+    fn compile_source(source: String) -> Chunk {
+        let tokens = Scanner::new(source).scan();
+        let declarations = Parser::new(tokens).parse();
+        Compiler::new().compile(&declarations)
+    }
+
+    #[test]
+    fn test_variable_declaration() {
+        let source = "var foo = 42;";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(42.0));
+        assert_eq!(vm.globals.get("foo"), expected_value);
+    }
+
+    #[test]
+    fn test_variable_access() {
+        let source = "
+            var foo = 2;
+            var result = 2 + foo;
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(4.0));
+        assert_eq!(vm.globals.get("result"), expected_value);
+    }
+
+    #[test]
+    fn test_variable_assignment() {
+        let source = "
+            var foo = 42;
+            foo = 1;
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("foo"), expected_value);
     }
 }

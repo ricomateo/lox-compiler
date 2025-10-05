@@ -155,25 +155,37 @@ impl Vm {
                     self.stack.pop();
                 }
                 OpCode::DefineGlobal(constant_index) => {
-                    let name = match self.chunk.constant_at(constant_index as usize) {
-                        Value::Object(Object::String(s)) => s.clone(),
-                        _ => return self.runtime_error("Variable name must be a string."),
-                    };
+                    let name = self.get_variable_name(constant_index)?;
                     let value = self.stack.pop().unwrap();
                     self.globals.insert(name, value);
                 }
                 OpCode::GetGlobal(constant_index) => {
-                    let name = match self.chunk.constant_at(constant_index as usize) {
-                        Value::Object(Object::String(s)) => s.clone(),
-                        _ => return self.runtime_error("Variable name must be a string."),
-                    };
+                    let name = self.get_variable_name(constant_index)?;
                     let Some(value) = self.globals.get(&name) else {
                         return self.runtime_error(&format!("Undefined variable '{name}'."));
                     };
                     self.stack.push(value.clone());
                 }
+                OpCode::SetGlobal(constant_index) => {
+                    let name = self.get_variable_name(constant_index)?;
+                    if !self.globals.contains_key(&name) {
+                        return self.runtime_error(&format!("Undefined variable '{name}'."));
+                    }
+                    let new_value = self.peek(0).unwrap().clone();
+                    self.globals.insert(name, new_value);
+                }
             }
         }
+    }
+
+    fn get_variable_name(&mut self, constant_index: usize) -> Result<String, VmError> {
+        let constant = self.chunk.constant_at(constant_index as usize);
+        let Value::Object(Object::String(string)) = constant else {
+            // TODO: refactor this
+            eprintln!("Variable name must be a string.");
+            return Err(VmError::RuntimeError);
+        };
+        Ok(string)
     }
 
     fn print_value(&self, value: Value) {

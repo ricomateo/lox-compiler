@@ -33,6 +33,7 @@ pub enum OpCode {
     Less,
     DefineGlobal(usize),
     GetGlobal(usize),
+    SetGlobal(usize),
     Return,
 }
 
@@ -113,6 +114,7 @@ impl Chunk {
                 self.constant_instruction("OP_DEFINE_GLOBAL", offset, *index)
             }
             OpCode::GetGlobal(index) => self.constant_instruction("OP_GET_GLOBAL", offset, *index),
+            OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
         }
     }
 

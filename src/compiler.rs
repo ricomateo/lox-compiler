@@ -75,6 +75,11 @@ impl Compiler {
                 let constant_index = self.identifier_constant(name.clone());
                 self.emit_byte(OpCode::GetGlobal(constant_index), 0);
             }
+            Expr::VariableAssignment { name, value } => {
+                self.compile_expr(value);
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::SetGlobal(constant_index), 0);
+            }
         }
     }
 

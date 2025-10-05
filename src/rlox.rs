@@ -62,6 +62,10 @@ impl Rlox {
         log::info!("Parsing...");
         let mut parser = Parser::new(tokens);
         let declarations = parser.parse();
+        // Don't compile the declarations if there were parsing errors
+        if parser.had_error {
+            return;
+        }
         log::debug!("Declarations: {:#?}", declarations);
 
         // Phase 3: Compilation

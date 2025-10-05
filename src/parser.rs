@@ -42,7 +42,7 @@ pub struct Parser {
     previous: Option<Token>,
     tokens: Vec<Token>,
     current_index: usize,
-    had_error: bool,
+    pub had_error: bool,
     panic_mode: bool,
 }
 
@@ -74,7 +74,6 @@ impl Parser {
         let mut declarations = Vec::new();
         while !self.matches(TokenType::Eof) {
             let Ok(declaration) = self.declaration() else {
-                println!("error");
                 self.synchronize();
                 continue;
             };
@@ -180,20 +179,25 @@ impl Parser {
         }
 
         let previous_token_type = self.previous.clone().unwrap().kind;
-        let prefix_rule = get_rule(previous_token_type).prefix;
-        if prefix_rule.is_none() {
+        let Some(prefix_rule) = get_rule(previous_token_type).prefix else {
             self.error("Expect expression.");
             return Err(ParseError::ExpectedExpression);
-        }
+        };
 
-        let mut expr = prefix_rule.unwrap()(self)?;
+        let can_assign = precedence <= Precedence::Assignment;
+        let mut expr = prefix_rule(self, can_assign)?;
 
         while precedence <= get_rule(self.current.clone().unwrap().kind).precedence {
             self.advance();
             let infix_rule = get_rule(self.previous.clone().unwrap().kind).infix;
             if let Some(rule) = infix_rule {
-                expr = rule(self, expr)?;
+                expr = rule(self, expr, can_assign)?;
             }
+        }
+
+        if can_assign && self.matches(TokenType::Equal) {
+            self.error("Invalid assignment target.");
+            return Err(ParseError::ExpectedExpression);
         }
 
         Ok(expr)
@@ -205,7 +209,7 @@ impl Parser {
         self.parse_precedence(Precedence::Assignment)
     }
 
-    fn number(&mut self) -> Result<Expr, ParseError> {
+    fn number(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         let value = self
             .previous
             .clone()
@@ -216,23 +220,31 @@ impl Parser {
         Ok(Expr::Literal(Literal::Number(value)))
     }
 
-    fn string(&mut self) -> Result<Expr, ParseError> {
+    fn string(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         let length = self.previous.clone().unwrap().length;
         // Remove quotes from string
         let string = &self.previous.clone().unwrap().lexeme[1..length - 1];
         Ok(Expr::Literal(Literal::String(string.into())))
     }
 
-    fn variable(&mut self) -> Result<Expr, ParseError> {
+    fn variable(&mut self, can_assign: bool) -> Result<Expr, ParseError> {
         let variable_name = self.previous.clone().unwrap();
-        Ok(self.named_variable(variable_name))
+        self.named_variable(variable_name, can_assign)
     }
 
-    fn named_variable(&mut self, name: Token) -> Expr {
-        Expr::Variable { name: name.lexeme }
+    fn named_variable(&mut self, name: Token, can_assign: bool) -> Result<Expr, ParseError> {
+        if can_assign && self.matches(TokenType::Equal) {
+            let value = self.expression()?;
+            return Ok(Expr::VariableAssignment {
+                name: name.lexeme,
+                value: Box::new(value),
+            });
+        } else {
+            return Ok(Expr::Variable { name: name.lexeme });
+        }
     }
 
-    fn unary(&mut self) -> Result<Expr, ParseError> {
+    fn unary(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         let operator = self.previous.clone().unwrap();
         let right = self.parse_precedence(Precedence::Unary)?;
         Ok(Expr::Unary {
@@ -241,7 +253,7 @@ impl Parser {
         })
     }
 
-    fn binary(&mut self, left: Expr) -> Result<Expr, ParseError> {
+    fn binary(&mut self, left: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
         let operator = self.previous.clone().unwrap();
         let rule = get_rule(operator.kind);
         let right = self.parse_precedence(rule.precedence.next())?;
@@ -252,7 +264,7 @@ impl Parser {
         })
     }
 
-    fn grouping(&mut self) -> Result<Expr, ParseError> {
+    fn grouping(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         let expr = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after expression.");
         Ok(Expr::Grouping {
@@ -260,7 +272,7 @@ impl Parser {
         })
     }
 
-    fn literal(&mut self) -> Result<Expr, ParseError> {
+    fn literal(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         match &self.previous.clone().unwrap().kind {
             TokenType::False => Ok(Expr::Literal(Literal::Bool(false))),
             TokenType::True => Ok(Expr::Literal(Literal::Bool(true))),
@@ -329,7 +341,7 @@ impl Parser {
         match token.kind {
             TokenType::Eof => eprint!(" at end"),
             TokenType::Error => (),
-            _ => eprint!(" at '{}'", token.lexeme),
+            _ => eprint!(" at '{}': {}", token.lexeme, _message),
         }
 
         self.had_error = true;
@@ -346,15 +358,15 @@ impl Parser {
 }
 
 struct ParseRule {
-    prefix: Option<fn(&mut Parser) -> Result<Expr, ParseError>>,
-    infix: Option<fn(&mut Parser, Expr) -> Result<Expr, ParseError>>,
+    prefix: Option<fn(&mut Parser, bool) -> Result<Expr, ParseError>>,
+    infix: Option<fn(&mut Parser, Expr, bool) -> Result<Expr, ParseError>>,
     precedence: Precedence,
 }
 
 impl ParseRule {
     fn new(
-        prefix: Option<fn(&mut Parser) -> Result<Expr, ParseError>>,
-        infix: Option<fn(&mut Parser, Expr) -> Result<Expr, ParseError>>,
+        prefix: Option<fn(&mut Parser, bool) -> Result<Expr, ParseError>>,
+        infix: Option<fn(&mut Parser, Expr, bool) -> Result<Expr, ParseError>>,
         precedence: Precedence,
     ) -> Self {
         Self {

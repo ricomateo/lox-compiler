@@ -18,6 +18,10 @@ pub enum Expr {
     Variable {
         name: String,
     },
+    VariableAssignment {
+        name: String,
+        value: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

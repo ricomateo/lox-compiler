@@ -223,6 +223,15 @@ impl Parser {
         Ok(Expr::Literal(Literal::String(string.into())))
     }
 
+    fn variable(&mut self) -> Result<Expr, ParseError> {
+        let variable_name = self.previous.clone().unwrap();
+        Ok(self.named_variable(variable_name))
+    }
+
+    fn named_variable(&mut self, name: Token) -> Expr {
+        Expr::Variable { name: name.lexeme }
+    }
+
     fn unary(&mut self) -> Result<Expr, ParseError> {
         let operator = self.previous.clone().unwrap();
         let right = self.parse_precedence(Precedence::Unary)?;
@@ -379,6 +388,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         TokenType::Less => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
         TokenType::LessEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
         TokenType::String => ParseRule::new(Some(Parser::string), None, Precedence::None),
+        TokenType::Identifier => ParseRule::new(Some(Parser::variable), None, Precedence::None),
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }

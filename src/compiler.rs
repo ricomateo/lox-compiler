@@ -71,6 +71,10 @@ impl Compiler {
             Expr::Grouping { expression } => {
                 self.compile_expr(expression);
             }
+            Expr::Variable { name } => {
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::GetGlobal(constant_index), 0);
+            }
         }
     }
 

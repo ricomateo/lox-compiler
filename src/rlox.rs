@@ -46,11 +46,7 @@ impl Rlox {
             eprintln!("Could not read file: {}", path);
             std::process::exit(65);
         });
-
-        for line in source.lines() {
-            println!("> {}", line);
-            self.interpret(line.to_string());
-        }
+        self.interpret(source);
     }
 
     fn interpret(&mut self, source: String) {

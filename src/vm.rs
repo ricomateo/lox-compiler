@@ -148,8 +148,7 @@ impl Vm {
                 }
                 OpCode::Print => {
                     let value = self.stack.pop().unwrap();
-                    // TODO: Replace this with a print_value function
-                    println!("{value:?}");
+                    self.print_value(value);
                 }
                 OpCode::Pop => {
                     // Pop the top of the stack
@@ -163,7 +162,26 @@ impl Vm {
                     let value = self.stack.pop().unwrap();
                     self.globals.insert(name, value);
                 }
+                OpCode::GetGlobal(constant_index) => {
+                    let name = match self.chunk.constant_at(constant_index as usize) {
+                        Value::Object(Object::String(s)) => s.clone(),
+                        _ => return self.runtime_error("Variable name must be a string."),
+                    };
+                    let Some(value) = self.globals.get(&name) else {
+                        return self.runtime_error(&format!("Undefined variable '{name}'."));
+                    };
+                    self.stack.push(value.clone());
+                }
             }
+        }
+    }
+
+    fn print_value(&self, value: Value) {
+        match value {
+            Value::Number(number) => println!("{number}"),
+            Value::Bool(bool) => println!("{bool}"),
+            Value::Nil => println!("nil"),
+            Value::Object(Object::String(string)) => println!("{string}"),
         }
     }
 

@@ -76,6 +76,9 @@ impl Rlox {
         // Phase 4: Running
         log::info!("Running...");
         let mut vm = Vm::new(chunk);
-        vm.run().unwrap();
+        let result = vm.run();
+        if result.is_err() {
+            std::process::exit(65);
+        }
     }
 }

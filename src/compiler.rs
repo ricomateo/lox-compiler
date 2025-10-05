@@ -1,6 +1,6 @@
 use crate::{
     chunk::{Chunk, Object, OpCode, Value},
-    declaration::{Declaration, Statement},
+    declaration::{Declaration, DeclarationKind, Statement},
     expr::Expr,
 };
 
@@ -10,12 +10,14 @@ use crate::scanner::TokenType;
 
 pub struct Compiler {
     chunk: Chunk,
+    current_line: usize,
 }
 
 impl Compiler {
     pub fn new() -> Self {
         Self {
             chunk: Chunk::new(),
+            current_line: 0,
         }
     }
 
@@ -28,27 +30,25 @@ impl Compiler {
     }
 
     fn compile_declaration(&mut self, declaration: &Declaration) {
-        match declaration {
-            Declaration::Statement(Statement::PrintStatement(expr)) => {
-                let line = 0;
+        self.current_line = declaration.line;
+        match &declaration.inner {
+            DeclarationKind::Statement(Statement::PrintStatement(expr)) => {
                 self.compile_expr(&expr);
-                self.emit_byte(OpCode::Print, line);
+                self.emit_byte(OpCode::Print, self.current_line);
             }
-            Declaration::Statement(Statement::ExprStatement(expr)) => {
-                let line = 0;
+            DeclarationKind::Statement(Statement::ExprStatement(expr)) => {
                 self.compile_expr(&expr);
-                self.emit_byte(OpCode::Pop, line);
+                self.emit_byte(OpCode::Pop, self.current_line);
             }
-            Declaration::VariableDeclaration { name, initializer } => {
-                let line = 0;
+            DeclarationKind::VariableDeclaration { name, initializer } => {
                 if let Some(expr) = initializer {
-                    self.compile_expr(expr);
+                    self.compile_expr(&expr);
                 } else {
-                    self.emit_byte(OpCode::Nil, line);
+                    self.emit_byte(OpCode::Nil, self.current_line);
                 }
 
                 let constant_index = self.identifier_constant(name.clone());
-                self.emit_byte(OpCode::DefineGlobal(constant_index), line);
+                self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
             }
         }
     }
@@ -73,12 +73,12 @@ impl Compiler {
             }
             Expr::Variable { name } => {
                 let constant_index = self.identifier_constant(name.clone());
-                self.emit_byte(OpCode::GetGlobal(constant_index), 0);
+                self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
             }
             Expr::VariableAssignment { name, value } => {
                 self.compile_expr(value);
                 let constant_index = self.identifier_constant(name.clone());
-                self.emit_byte(OpCode::SetGlobal(constant_index), 0);
+                self.emit_byte(OpCode::SetGlobal(constant_index), self.current_line);
             }
         }
     }
@@ -99,7 +99,7 @@ impl Compiler {
     }
 
     fn end_compiler(&mut self) {
-        self.emit_byte(OpCode::Return, 0);
+        self.emit_byte(OpCode::Return, self.current_line);
     }
 
     fn identifier_constant(&mut self, name: String) -> usize {
@@ -154,20 +154,20 @@ impl Compiler {
     }
 
     fn compile_literal(&mut self, literal: &Literal) {
+        let line = self.current_line;
         match literal {
             Literal::Number(value) => {
-                self.emit_constant(Value::Number(*value), 0);
+                self.emit_constant(Value::Number(*value), line);
             }
             Literal::Bool(value) => match value {
-                true => self.emit_byte(OpCode::True, 0),
-                false => self.emit_byte(OpCode::False, 0),
+                true => self.emit_byte(OpCode::True, line),
+                false => self.emit_byte(OpCode::False, line),
             },
             Literal::Nil => {
-                self.emit_byte(OpCode::Nil, 0);
+                self.emit_byte(OpCode::Nil, line);
             }
             Literal::String(string) => {
                 // TODO: set the right line here
-                let line = 0;
                 self.emit_constant(Value::Object(Object::String(string.clone())), line);
             }
         }
@@ -196,7 +196,11 @@ mod tests {
     /// Compile an expression and return chunk
     fn compile(expr: Expr) -> Chunk {
         let mut compiler = Compiler::new();
-        let declarations = vec![Declaration::Statement(Statement::ExprStatement(expr))];
+        let declaration = Declaration {
+            inner: DeclarationKind::Statement(Statement::ExprStatement(expr)),
+            line: 0,
+        };
+        let declarations = vec![declaration];
         compiler.compile(&declarations)
     }
 

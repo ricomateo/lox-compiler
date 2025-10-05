@@ -80,6 +80,10 @@ impl Chunk {
         self.constants[constant_index].clone()
     }
 
+    pub fn line_at(&self, index: usize) -> usize {
+        self.lines[index]
+    }
+
     pub fn disassemble_instruction(&self, offset: usize) -> usize {
         print!("{:04} ", offset);
         let instruction = &self.chunk[offset];

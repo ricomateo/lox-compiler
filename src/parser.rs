@@ -110,11 +110,10 @@ impl Parser {
             TokenType::Semicolon,
             "Expect ';' after variable declaration.",
         );
-
-        Ok(Declaration::VariableDeclaration {
-            name: token.lexeme,
-            initializer,
-        })
+        let name = token.lexeme;
+        let line = self.previous_token_line();
+        let declaration = Declaration::variable_declaration(name, initializer, line);
+        Ok(declaration)
     }
 
     fn parse_variable(&mut self, error_message: &str) -> Result<Token, ParseError> {
@@ -150,7 +149,9 @@ impl Parser {
     fn expression_statement(&mut self) -> Result<Declaration, ParseError> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after expression.");
-        Ok(Declaration::Statement(Statement::ExprStatement(expr)))
+        let line = self.previous_token_line();
+        let declaration = Declaration::statement(Statement::ExprStatement(expr), line);
+        Ok(declaration)
     }
 
     fn matches(&mut self, token_type: TokenType) -> bool {
@@ -168,7 +169,9 @@ impl Parser {
     fn print_statement(&mut self) -> Result<Declaration, ParseError> {
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon, "Expect ';' after value.");
-        Ok(Declaration::Statement(Statement::PrintStatement(expr)))
+        let line = self.previous_token_line();
+        let declaration = Declaration::statement(Statement::PrintStatement(expr), line);
+        Ok(declaration)
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) -> Result<Expr, ParseError> {
@@ -322,6 +325,10 @@ impl Parser {
         self.error(message);
     }
 
+    fn previous_token_line(&mut self) -> usize {
+        self.previous.clone().unwrap().line
+    }
+
     // ---------- Error handling ----------
 
     fn error(&mut self, message: &str) {
@@ -331,7 +338,7 @@ impl Parser {
         }
     }
 
-    fn error_at(&mut self, token: &Token, _message: &str) {
+    fn error_at(&mut self, token: &Token, message: &str) {
         if self.panic_mode {
             return;
         }
@@ -341,7 +348,7 @@ impl Parser {
         match token.kind {
             TokenType::Eof => eprint!(" at end"),
             TokenType::Error => (),
-            _ => eprint!(" at '{}': {}", token.lexeme, _message),
+            _ => eprint!(" at '{}': {}", token.lexeme, message),
         }
 
         self.had_error = true;

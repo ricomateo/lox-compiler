@@ -11,6 +11,13 @@ use crate::scanner::TokenType;
 pub struct Compiler {
     chunk: Chunk,
     current_line: usize,
+    locals: Vec<Local>,
+    scope_depth: usize,
+}
+
+pub struct Local {
+    name: Token,
+    depth: usize,
 }
 
 impl Compiler {
@@ -18,6 +25,8 @@ impl Compiler {
         Self {
             chunk: Chunk::new(),
             current_line: 0,
+            locals: Vec::new(),
+            scope_depth: 0,
         }
     }
 

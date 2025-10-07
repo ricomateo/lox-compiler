@@ -1,6 +1,6 @@
 use crate::expr::Expr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Declaration {
     pub inner: DeclarationKind,
     pub line: usize,

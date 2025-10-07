@@ -46,11 +46,7 @@ impl Rlox {
             eprintln!("Could not read file: {}", path);
             std::process::exit(65);
         });
-
-        for line in source.lines() {
-            println!("> {}", line);
-            self.interpret(line.to_string());
-        }
+        self.interpret(source);
     }
 
     fn interpret(&mut self, source: String) {
@@ -65,17 +61,24 @@ impl Rlox {
         // Phase 2: Parsing
         log::info!("Parsing...");
         let mut parser = Parser::new(tokens);
-        let ast = parser.expression();
-        log::debug!("AST: {:#?}", ast);
+        let declarations = parser.parse();
+        // Don't compile the declarations if there were parsing errors
+        if parser.had_error {
+            return;
+        }
+        log::debug!("Declarations: {:#?}", declarations);
 
         // Phase 3: Compilation
         log::info!("Compiling...");
         let mut compiler = Compiler::new();
-        let chunk = compiler.compile(&ast);
+        let chunk = compiler.compile(&declarations);
 
         // Phase 4: Running
         log::info!("Running...");
         let mut vm = Vm::new(chunk);
-        vm.run().unwrap();
+        let result = vm.run();
+        if result.is_err() {
+            std::process::exit(65);
+        }
     }
 }

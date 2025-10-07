@@ -1,0 +1,8 @@
+// Variable declaration
+var a = 1;
+var b = 2;
+print a + b;
+
+// Variable assignment
+a = 2;
+print a + b;

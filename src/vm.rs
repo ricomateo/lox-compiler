@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::chunk::{Chunk, Object, OpCode, Value};
 
 #[derive(Debug)]
@@ -5,6 +7,7 @@ pub struct Vm {
     chunk: Chunk,
     instruction_pointer: usize,
     stack: Vec<Value>,
+    pub globals: HashMap<String, Value>,
 }
 
 impl Vm {
@@ -13,6 +16,7 @@ impl Vm {
             chunk,
             instruction_pointer: 0,
             stack: Vec::new(),
+            globals: HashMap::new(),
         }
     }
 
@@ -50,8 +54,6 @@ impl Vm {
                     }
                 }
                 OpCode::Return => {
-                    // let value = self.stack.pop().unwrap();
-                    // println!("{value:?}");
                     return Ok(());
                 }
                 // TODO: remove unwraps
@@ -144,7 +146,54 @@ impl Vm {
                         return self.runtime_error("Operands must be numbers.");
                     }
                 }
+                OpCode::Print => {
+                    let value = self.stack.pop().unwrap();
+                    self.print_value(value);
+                }
+                OpCode::Pop => {
+                    // Pop the top of the stack
+                    self.stack.pop();
+                }
+                OpCode::DefineGlobal(constant_index) => {
+                    let name = self.get_variable_name(constant_index)?;
+                    let value = self.stack.pop().unwrap();
+                    self.globals.insert(name, value);
+                }
+                OpCode::GetGlobal(constant_index) => {
+                    let name = self.get_variable_name(constant_index)?;
+                    let Some(value) = self.globals.get(&name) else {
+                        return self.runtime_error(&format!("Undefined variable '{name}'."));
+                    };
+                    self.stack.push(value.clone());
+                }
+                OpCode::SetGlobal(constant_index) => {
+                    let name = self.get_variable_name(constant_index)?;
+                    if !self.globals.contains_key(&name) {
+                        return self.runtime_error(&format!("Undefined variable '{name}'."));
+                    }
+                    let new_value = self.peek(0).unwrap().clone();
+                    self.globals.insert(name, new_value);
+                }
             }
+        }
+    }
+
+    fn get_variable_name(&mut self, constant_index: usize) -> Result<String, VmError> {
+        let constant = self.chunk.constant_at(constant_index as usize);
+        let Value::Object(Object::String(string)) = constant else {
+            // TODO: refactor this
+            eprintln!("Variable name must be a string.");
+            return Err(VmError::RuntimeError);
+        };
+        Ok(string)
+    }
+
+    fn print_value(&self, value: Value) {
+        match value {
+            Value::Number(number) => println!("{number}"),
+            Value::Bool(bool) => println!("{bool}"),
+            Value::Nil => println!("nil"),
+            Value::Object(Object::String(string)) => println!("{string}"),
         }
     }
 
@@ -261,7 +310,12 @@ pub enum VmError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::{Chunk, OpCode, Value};
+    use crate::{
+        chunk::{Chunk, OpCode, Value},
+        compiler::Compiler,
+        parser::Parser,
+        scanner::Scanner,
+    };
 
     /// Creates and run a vm with the given chunk, checks its result is ok
     /// and returns the value at the top of the stack
@@ -445,5 +499,53 @@ mod tests {
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
         let expected_value = Value::Bool(false);
         assert_eq!(stack_top, expected_value);
+    }
+
+    fn compile_source(source: String) -> Chunk {
+        let tokens = Scanner::new(source).scan();
+        let declarations = Parser::new(tokens).parse();
+        Compiler::new().compile(&declarations)
+    }
+
+    #[test]
+    fn test_variable_declaration() {
+        let source = "var foo = 42;";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(42.0));
+        assert_eq!(vm.globals.get("foo"), expected_value);
+    }
+
+    #[test]
+    fn test_variable_access() {
+        let source = "
+            var foo = 2;
+            var result = 2 + foo;
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(4.0));
+        assert_eq!(vm.globals.get("result"), expected_value);
+    }
+
+    #[test]
+    fn test_variable_assignment() {
+        let source = "
+            var foo = 42;
+            foo = 1;
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("foo"), expected_value);
     }
 }

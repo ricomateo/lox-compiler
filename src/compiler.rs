@@ -1,5 +1,6 @@
 use crate::{
     chunk::{Chunk, Object, OpCode, Value},
+    declaration::{Declaration, DeclarationKind, Statement},
     expr::Expr,
 };
 
@@ -9,19 +10,47 @@ use crate::scanner::TokenType;
 
 pub struct Compiler {
     chunk: Chunk,
+    current_line: usize,
 }
 
 impl Compiler {
     pub fn new() -> Self {
         Self {
             chunk: Chunk::new(),
+            current_line: 0,
         }
     }
 
-    pub fn compile(&mut self, expr: &Expr) -> Chunk {
-        self.compile_expr(expr);
+    pub fn compile(&mut self, declarations: &Vec<Declaration>) -> Chunk {
+        for declaration in declarations {
+            self.compile_declaration(declaration);
+        }
         self.end_compiler();
         self.chunk.clone()
+    }
+
+    fn compile_declaration(&mut self, declaration: &Declaration) {
+        self.current_line = declaration.line;
+        match &declaration.inner {
+            DeclarationKind::Statement(Statement::PrintStatement(expr)) => {
+                self.compile_expr(&expr);
+                self.emit_byte(OpCode::Print, self.current_line);
+            }
+            DeclarationKind::Statement(Statement::ExprStatement(expr)) => {
+                self.compile_expr(&expr);
+                self.emit_byte(OpCode::Pop, self.current_line);
+            }
+            DeclarationKind::VariableDeclaration { name, initializer } => {
+                if let Some(expr) = initializer {
+                    self.compile_expr(&expr);
+                } else {
+                    self.emit_byte(OpCode::Nil, self.current_line);
+                }
+
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
+            }
+        }
     }
 
     fn compile_expr(&mut self, expr: &Expr) {
@@ -42,6 +71,15 @@ impl Compiler {
             Expr::Grouping { expression } => {
                 self.compile_expr(expression);
             }
+            Expr::Variable { name } => {
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
+            }
+            Expr::VariableAssignment { name, value } => {
+                self.compile_expr(value);
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::SetGlobal(constant_index), self.current_line);
+            }
         }
     }
 
@@ -61,7 +99,11 @@ impl Compiler {
     }
 
     fn end_compiler(&mut self) {
-        self.emit_byte(OpCode::Return, 0);
+        self.emit_byte(OpCode::Return, self.current_line);
+    }
+
+    fn identifier_constant(&mut self, name: String) -> usize {
+        self.make_constant(Value::Object(Object::String(name)))
     }
 
     fn compile_binary(&mut self, operator: &Token, left: &Expr, right: &Expr) {
@@ -112,20 +154,20 @@ impl Compiler {
     }
 
     fn compile_literal(&mut self, literal: &Literal) {
+        let line = self.current_line;
         match literal {
             Literal::Number(value) => {
-                self.emit_constant(Value::Number(*value), 0);
+                self.emit_constant(Value::Number(*value), line);
             }
             Literal::Bool(value) => match value {
-                true => self.emit_byte(OpCode::True, 0),
-                false => self.emit_byte(OpCode::False, 0),
+                true => self.emit_byte(OpCode::True, line),
+                false => self.emit_byte(OpCode::False, line),
             },
             Literal::Nil => {
-                self.emit_byte(OpCode::Nil, 0);
+                self.emit_byte(OpCode::Nil, line);
             }
             Literal::String(string) => {
                 // TODO: set the right line here
-                let line = 0;
                 self.emit_constant(Value::Object(Object::String(string.clone())), line);
             }
         }
@@ -154,7 +196,12 @@ mod tests {
     /// Compile an expression and return chunk
     fn compile(expr: Expr) -> Chunk {
         let mut compiler = Compiler::new();
-        compiler.compile(&expr)
+        let declaration = Declaration {
+            inner: DeclarationKind::Statement(Statement::ExprStatement(expr)),
+            line: 0,
+        };
+        let declarations = vec![declaration];
+        compiler.compile(&declarations)
     }
 
     /// Get the opcode at a specific index in the chunk
@@ -183,7 +230,8 @@ mod tests {
 
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
-        assert_eq!(opcode_at(&chunk, 1), OpCode::Return); // Check if second opcode is Return
+        assert_eq!(opcode_at(&chunk, 1), OpCode::Pop); // Check if second opcode is Pop
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Return);
     }
 
     /// Test compiling literal booleans and nil
@@ -196,19 +244,22 @@ mod tests {
         let chunk_nil = compile(Expr::Literal(Literal::Nil));
 
         assert_eq!(opcode_at(&chunk_true, 0), OpCode::True); // Check if first opcode is True
-        assert!(matches!(opcode_at(&chunk_true, 1), OpCode::Return)); // Check if second opcode is Return
+        assert!(matches!(opcode_at(&chunk_true, 1), OpCode::Pop)); // Check if second opcode is Pop
+        assert!(matches!(opcode_at(&chunk_true, 2), OpCode::Return));
 
         assert_eq!(opcode_at(&chunk_false, 0), OpCode::False); // Check if first opcode is False
-        assert!(matches!(opcode_at(&chunk_false, 1), OpCode::Return)); // Check if second opcode is Return
+        assert!(matches!(opcode_at(&chunk_false, 1), OpCode::Pop)); // Check if second opcode is Pop
+        assert!(matches!(opcode_at(&chunk_false, 2), OpCode::Return));
 
         assert_eq!(opcode_at(&chunk_nil, 0), OpCode::Nil); // Check if first opcode is Nil
-        assert!(matches!(opcode_at(&chunk_nil, 1), OpCode::Return)); // Check if second opcode is Return
+        assert!(matches!(opcode_at(&chunk_nil, 1), OpCode::Pop)); // Check if second opcode is Pop
+        assert!(matches!(opcode_at(&chunk_nil, 2), OpCode::Return));
     }
 
     /// Test compiling a unary minus expression
     /// Expr: -3.0
 
-    /// Chunk: [CONSTANT 0, NEGATE, RETURN]
+    /// Chunk: [CONSTANT 0, NEGATE, POP, RETURN]
 
     #[test]
     fn test_unary_minus() {
@@ -221,13 +272,14 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(3.0)); // Check if constant value is 3.0
         assert_eq!(opcode_at(&chunk, 1), OpCode::Negate); // Check if second opcode is Negate
-        assert_eq!(opcode_at(&chunk, 2), OpCode::Return); // Check if third opcode is Return
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop); // Check if third opcode is Pop
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Return);
     }
 
     /// Test compiling a unary not expression
     /// Expr: !false
 
-    /// Chunk: [FALSE, NOT, RETURN]
+    /// Chunk: [FALSE, NOT, POP, RETURN]
 
     #[test]
     fn test_unary_not() {
@@ -239,13 +291,14 @@ mod tests {
 
         assert_eq!(opcode_at(&chunk, 0), OpCode::False); // Check if first opcode is False
         assert_eq!(opcode_at(&chunk, 1), OpCode::Not); // Check if second opcode is Not
-        assert_eq!(opcode_at(&chunk, 2), OpCode::Return); // Check if third opcode is Return
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop); // Check if third opcode is Pop
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Return);
     }
 
     /// Test compiling a binary addition expression
     /// Expr: 1.0 + 2.0
 
-    /// Chunk: [CONSTANT 0, CONSTANT 1, ADD, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, ADD, POP, RETURN]
 
     #[test]
     fn test_binary_addition() {
@@ -261,14 +314,15 @@ mod tests {
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if first constant value is 1.0
         assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if second constant value is 2.0
         assert_eq!(opcode_at(&chunk, 2), OpCode::Add); // Check if third opcode is Add
-        assert_eq!(opcode_at(&chunk, 3), OpCode::Return); // Check if fourth opcode is Return
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop); // Check if fourth opcode is Pop
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Return);
     }
 
     /// Test compiling binary comparisons: ==, !=
     /// Expr: 1.0 == 1.0, 1.0 != 2.0
 
-    /// Chunk: [CONSTANT 0, CONSTANT 1, EQUAL, RETURN]
-    /// Chunk: [CONSTANT 0, CONSTANT 1, EQUAL, NOT, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, EQUAL, POP, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, EQUAL, NOT, POP, RETURN]
 
     #[test]
     fn test_binary_comparison_equal_not_equal() {
@@ -284,7 +338,8 @@ mod tests {
         assert_eq!(constant_value_at(&chunk_eq, 0).unwrap(), Value::Number(1.0)); // Check if first constant value is 1.0
         assert_eq!(constant_value_at(&chunk_eq, 1).unwrap(), Value::Number(1.0)); // Check if second constant value is 1.0
         assert_eq!(opcode_at(&chunk_eq, 2), OpCode::Equal); // Check if third opcode is Equal
-        assert_eq!(opcode_at(&chunk_eq, 3), OpCode::Return); // Check if fourth opcode is Return
+        assert_eq!(opcode_at(&chunk_eq, 3), OpCode::Pop); // Check if fourth opcode is Pop
+        assert_eq!(opcode_at(&chunk_eq, 4), OpCode::Return);
 
         let expr_ne = Expr::Binary {
             left: Box::new(Expr::Literal(Literal::Number(1.0))),
@@ -299,14 +354,15 @@ mod tests {
         assert_eq!(constant_value_at(&chunk_ne, 1).unwrap(), Value::Number(2.0)); // Check if second constant value is 2.0
         assert_eq!(opcode_at(&chunk_ne, 2), OpCode::Equal); // Check if third opcode is Equal
         assert_eq!(opcode_at(&chunk_ne, 3), OpCode::Not); // Check if fourth opcode is Not
-        assert_eq!(opcode_at(&chunk_ne, 4), OpCode::Return); // Check if fifth opcode is Return
+        assert_eq!(opcode_at(&chunk_ne, 4), OpCode::Pop); // Check if fifth opcode is Pop
+        assert_eq!(opcode_at(&chunk_ne, 5), OpCode::Return);
     }
 
     /// Test compiling binary comparisons: >, <
     /// Expr: 2.0 > 1.0, 1.0 < 2.0
 
-    /// Chunk: [CONSTANT 0, CONSTANT 1, GREATER, RETURN]
-    /// Chunk: [CONSTANT 0, CONSTANT 1, LESS, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, GREATER, POP, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, LESS, POP, RETURN]
 
     #[test]
     fn test_binary_comparison_greater_less() {
@@ -322,7 +378,8 @@ mod tests {
         assert_eq!(constant_value_at(&chunk_gt, 0).unwrap(), Value::Number(2.0)); // Check if first constant value is 2.0
         assert_eq!(constant_value_at(&chunk_gt, 1).unwrap(), Value::Number(1.0)); // Check if second constant value is 1.0
         assert_eq!(opcode_at(&chunk_gt, 2), OpCode::Greater); // Check if third opcode is Greater
-        assert_eq!(opcode_at(&chunk_gt, 3), OpCode::Return); // Check if fourth opcode is Return
+        assert_eq!(opcode_at(&chunk_gt, 3), OpCode::Pop); // Check if fourth opcode is Pop
+        assert_eq!(opcode_at(&chunk_gt, 4), OpCode::Return);
 
         let expr_lt = Expr::Binary {
             left: Box::new(Expr::Literal(Literal::Number(1.0))),
@@ -334,16 +391,17 @@ mod tests {
         assert!(matches!(opcode_at(&chunk_lt, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_lt, 1), OpCode::Constant(_))); // Check if second opcode is Constant
         assert_eq!(constant_value_at(&chunk_lt, 0).unwrap(), Value::Number(1.0)); // Check if first constant value is 1.0
-        assert_eq!(constant_value_at(&chunk_lt, 1).unwrap(), Value::Number(2.0)); // Check if second constant value is 2.0  
+        assert_eq!(constant_value_at(&chunk_lt, 1).unwrap(), Value::Number(2.0)); // Check if second constant value is 2.0
         assert_eq!(opcode_at(&chunk_lt, 2), OpCode::Less); // Check if third opcode is Less
-        assert_eq!(opcode_at(&chunk_lt, 3), OpCode::Return); // Check if fourth opcode is Return
+        assert_eq!(opcode_at(&chunk_lt, 3), OpCode::Pop); // Check if fourth opcode is Pop
+        assert_eq!(opcode_at(&chunk_lt, 4), OpCode::Return);
     }
 
     /// Test compiling binary comparisons: >=, <=
     /// Expr: 2.0 >= 2.0, 2.0 <= 2.0
 
-    /// Chunk: [CONSTANT 0, CONSTANT 1, LESS, NOT, RETURN]
-    /// Chunk: [CONSTANT 0, CONSTANT 1, GREATER, NOT, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, LESS, NOT, POP, RETURN]
+    /// Chunk: [CONSTANT 0, CONSTANT 1, GREATER, NOT, POP, RETURN]
 
     #[test]
     fn test_binary_comparison_greater_equal_less_equal() {
@@ -360,7 +418,8 @@ mod tests {
         assert_eq!(constant_value_at(&chunk_ge, 1).unwrap(), Value::Number(2.0)); // Check if second constant value is 2.0
         assert_eq!(opcode_at(&chunk_ge, 2), OpCode::Less); // Check if third opcode is Less
         assert_eq!(opcode_at(&chunk_ge, 3), OpCode::Not); // Check if fourth opcode is Not
-        assert_eq!(opcode_at(&chunk_ge, 4), OpCode::Return); // Check if fifth opcode is Return
+        assert_eq!(opcode_at(&chunk_ge, 4), OpCode::Pop); // Check if fifth opcode is Pop
+        assert_eq!(opcode_at(&chunk_ge, 5), OpCode::Return);
 
         let expr_le = Expr::Binary {
             left: Box::new(Expr::Literal(Literal::Number(2.0))),
@@ -375,6 +434,7 @@ mod tests {
         assert_eq!(constant_value_at(&chunk_le, 1).unwrap(), Value::Number(2.0)); // Check if second constant value is 2.0
         assert_eq!(opcode_at(&chunk_le, 2), OpCode::Greater); // Check if third opcode is Greater
         assert_eq!(opcode_at(&chunk_le, 3), OpCode::Not); // Check if fourth opcode is Not
-        assert_eq!(opcode_at(&chunk_le, 4), OpCode::Return); // Check if fifth opcode is Return
+        assert_eq!(opcode_at(&chunk_le, 4), OpCode::Pop); // Check if fifth opcode is Pop
+        assert_eq!(opcode_at(&chunk_le, 5), OpCode::Return);
     }
 }

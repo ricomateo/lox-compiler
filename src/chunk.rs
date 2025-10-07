@@ -17,18 +17,23 @@ pub enum OpCode {
     Nil,
     True,
     False,
+    Pop,
     Add,
     Subtract,
     Multiply,
     Divide,
     Not,
     Negate,
+    Print,
     // TODO: Create instructions for NotEqual, GreaterEqual and LessEqual
     // We could create instructions for NotEqual, GreaterEqual and LessEqual but we can implement them using existing instructions as syntactic sugar
     // The VM would execute faster if we did
     Equal,
     Greater,
     Less,
+    DefineGlobal(usize),
+    GetGlobal(usize),
+    SetGlobal(usize),
     Return,
 }
 
@@ -75,6 +80,10 @@ impl Chunk {
         self.constants[constant_index].clone()
     }
 
+    pub fn line_at(&self, index: usize) -> usize {
+        self.lines[index]
+    }
+
     pub fn disassemble_instruction(&self, offset: usize) -> usize {
         print!("{:04} ", offset);
         let instruction = &self.chunk[offset];
@@ -103,6 +112,13 @@ impl Chunk {
             OpCode::Equal => self.simple_instruction("OP_EQUAL", offset),
             OpCode::Greater => self.simple_instruction("OP_GREATER", offset),
             OpCode::Less => self.simple_instruction("OP_LESS", offset),
+            OpCode::Print => self.simple_instruction("OP_PRINT", offset),
+            OpCode::Pop => self.simple_instruction("OP_POP", offset),
+            OpCode::DefineGlobal(index) => {
+                self.constant_instruction("OP_DEFINE_GLOBAL", offset, *index)
+            }
+            OpCode::GetGlobal(index) => self.constant_instruction("OP_GET_GLOBAL", offset, *index),
+            OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
         }
     }
 

@@ -15,6 +15,13 @@ pub enum Expr {
     Grouping {
         expression: Box<Expr>,
     },
+    Variable {
+        name: String,
+    },
+    VariableAssignment {
+        name: String,
+        value: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

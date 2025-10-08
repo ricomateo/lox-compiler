@@ -20,6 +20,13 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn block(declarations: Vec<Declaration>, line: usize) -> Self {
+        Self {
+            inner: DeclarationKind::Block(declarations),
+            line,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +36,7 @@ pub enum DeclarationKind {
         initializer: Option<Expr>,
     },
     Statement(Statement),
+    Block(Vec<Declaration>),
 }
 
 #[derive(Debug, Clone)]

@@ -16,8 +16,8 @@ pub struct Compiler {
 }
 
 pub struct Local {
-    name: Token,
-    depth: usize,
+    name: String,
+    pub depth: usize,
 }
 
 impl Compiler {
@@ -55,9 +55,20 @@ impl Compiler {
                 } else {
                     self.emit_byte(OpCode::Nil, self.current_line);
                 }
-
+                // TODO: handle error
+                self.declare_variable(name.clone()).unwrap();
+                if self.scope_depth > 0 {
+                    return;
+                }
                 let constant_index = self.identifier_constant(name.clone());
                 self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
+            }
+            DeclarationKind::Block(declarations) => {
+                self.begin_scope();
+                for declaration in declarations {
+                    self.compile_declaration(declaration);
+                }
+                self.end_scope();
             }
         }
     }
@@ -87,12 +98,69 @@ impl Compiler {
             Expr::VariableAssignment { name, value } => {
                 self.compile_expr(value);
                 let constant_index = self.identifier_constant(name.clone());
-                self.emit_byte(OpCode::SetGlobal(constant_index), self.current_line);
+                self.define_variable(constant_index);
             }
         }
     }
 
+    fn define_variable(&mut self, constant_index: usize) {
+        // Do not emit bytecode for local variables
+        if self.scope_depth > 0 {
+            return;
+        }
+        self.emit_byte(OpCode::SetGlobal(constant_index), self.current_line);
+    }
+
+    fn declare_variable(&mut self, name: String) -> Result<(), CompilationError> {
+        // If we are in the global scope, return
+        if self.scope_depth == 0 {
+            return Ok(());
+        }
+
+        // Loop through the local variables in reverse order, looking
+        // for duplicate variables in the current scope
+        // (Local variables are appended to the array when they are declared,
+        //  which means the current scope is always at the end of the array)
+        for local in self.locals.iter().rev() {
+            // Encountering a local variable with a scope depth
+            // smaller than the current means we reached the outer scope
+            if local.depth < self.scope_depth {
+                break;
+            }
+            if name == local.name {
+                return Err(CompilationError::DuplicateLocalVariable);
+            }
+        }
+
+        self.add_local(name);
+        Ok(())
+    }
+
+    fn add_local(&mut self, name: String) {
+        let local = Local {
+            name,
+            depth: self.scope_depth,
+        };
+        self.locals.push(local);
+    }
+
     // ---------- Helpers ----------
+
+    fn begin_scope(&mut self) {
+        self.scope_depth += 1;
+    }
+
+    fn end_scope(&mut self) {
+        self.scope_depth -= 1;
+
+        // Remove local variables from the last scope
+        while let Some(local) = self.locals.last()
+            && local.depth > self.scope_depth
+        {
+            self.locals.pop();
+            self.emit_byte(OpCode::Pop, 0);
+        }
+    }
 
     fn emit_byte(&mut self, byte: OpCode, line: usize) {
         self.chunk.write(byte, line);
@@ -446,4 +514,9 @@ mod tests {
         assert_eq!(opcode_at(&chunk_le, 4), OpCode::Pop); // Check if fifth opcode is Pop
         assert_eq!(opcode_at(&chunk_le, 5), OpCode::Return);
     }
+}
+
+#[derive(Debug)]
+pub enum CompilationError {
+    DuplicateLocalVariable,
 }

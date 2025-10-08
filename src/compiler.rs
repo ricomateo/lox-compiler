@@ -92,13 +92,22 @@ impl Compiler {
                 self.compile_expr(expression);
             }
             Expr::Variable { name } => {
-                let constant_index = self.identifier_constant(name.clone());
-                self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
+                if let Some(local_index) = self.resolve_local(name) {
+                    self.emit_byte(OpCode::GetLocal(local_index), self.current_line);
+                } else {
+                    let constant_index = self.identifier_constant(name.clone());
+                    self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
+                }
             }
             Expr::VariableAssignment { name, value } => {
+                // TODO: revisar bien esto
                 self.compile_expr(value);
-                let constant_index = self.identifier_constant(name.clone());
-                self.define_variable(constant_index);
+                if let Some(local_index) = self.resolve_local(name) {
+                    self.emit_byte(OpCode::SetLocal(local_index), self.current_line);
+                } else {
+                    let constant_index = self.identifier_constant(name.clone());
+                    self.define_variable(constant_index);
+                }
             }
         }
     }
@@ -145,6 +154,17 @@ impl Compiler {
     }
 
     // ---------- Helpers ----------
+
+    /// Returns the index of the local variable with the given name, if exists.
+    /// Otherwise returns None
+    fn resolve_local(&self, name: &String) -> Option<usize> {
+        for (i, local) in self.locals.iter().enumerate().rev() {
+            if local.name == *name {
+                return Some(i);
+            }
+        }
+        None
+    }
 
     fn begin_scope(&mut self) {
         self.scope_depth += 1;

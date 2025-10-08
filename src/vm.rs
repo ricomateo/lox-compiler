@@ -174,6 +174,14 @@ impl Vm {
                     let new_value = self.peek(0).unwrap().clone();
                     self.globals.insert(name, new_value);
                 }
+                OpCode::GetLocal(slot) => {
+                    self.stack.push(self.stack[slot].clone());
+                }
+                OpCode::SetLocal(slot) => {
+                    // Takes the assigned value from the top of the stack
+                    // and stores it in the stack slot corresponding to the local variable
+                    self.stack[slot] = self.peek(0).unwrap().clone();
+                }
             }
         }
     }

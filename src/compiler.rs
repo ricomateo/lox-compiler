@@ -315,7 +315,7 @@ mod tests {
         }
     }
 
-    // ---------- Tests ----------
+    // ---------- Tests: Types ----------
 
     /// Test compiling a literal number
     /// Expr: 42.0
@@ -352,6 +352,8 @@ mod tests {
         assert!(matches!(opcode_at(&chunk_nil, 1), OpCode::Pop)); // Check if second opcode is Pop
         assert!(matches!(opcode_at(&chunk_nil, 2), OpCode::Return));
     }
+
+    // ---------- Tests: Comparison operators ----------
 
     /// Test compiling a unary minus expression
     /// Expr: -3.0
@@ -533,6 +535,210 @@ mod tests {
         assert_eq!(opcode_at(&chunk_le, 3), OpCode::Not); // Check if fourth opcode is Not
         assert_eq!(opcode_at(&chunk_le, 4), OpCode::Pop); // Check if fifth opcode is Pop
         assert_eq!(opcode_at(&chunk_le, 5), OpCode::Return);
+    }
+
+    // ---------- Tests: Global variables ----------
+
+    /// Source code: var a = 42;
+
+    /// Tokens: [VAR, IDENTIFIER(a), EQUAL, NUMBER(42), SEMICOLON]
+
+    /// Declaration: Statement(VariableDeclaration { name: "a", initializer: Some(Literal::Number(42)) })
+
+    /// Chunk: [CONSTANT 0 (42), DEFINE_GLOBAL "a", RETURN]
+
+    #[test]
+    fn test_global_variable_declaration() {
+        // ---------- Arrange ----------
+        let name = "a".to_string();
+        let initializer = Some(Expr::Literal(Literal::Number(42.0)));
+
+        let declaration = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: name.clone(),
+                initializer,
+            },
+            line: 1,
+        };
+
+        let declarations = vec![declaration];
+
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
+
+        // DEFINE_GLOBAL (with constant "a")
+        if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
+            assert_eq!(chunk.constant_at(idx), Value::Object(Object::String(name))); // Check if global variable is "a"
+        } else {
+            panic!("Expected DefineGlobal opcode");
+        }
+
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Return); // Check if third opcode is Return
+    }
+
+    /// Source code: var a;
+
+    /// Tokens: [VAR, IDENTIFIER(a), SEMICOLON]
+
+    /// Declaration: Statement(VariableDeclaration { name: "a", initializer: None })
+
+    /// Chunk: [NIL, DEFINE_GLOBAL "a", RETURN]
+
+    #[test]
+    fn test_global_variable_declaration_without_initializer() {
+        // ---------- Arrange ----------
+        let name = "a".to_string();
+
+        let declaration = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: name.clone(),
+                initializer: None,
+            },
+            line: 1,
+        };
+
+        let declarations = vec![declaration];
+
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::Nil); // Check if first opcode is Nil
+
+        if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
+            assert_eq!(chunk.constant_at(idx), Value::Object(Object::String(name))); // Check if global variable is "a"
+        } else {
+            panic!("Expected DefineGlobal opcode");
+        }
+
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Return); // Check if third opcode is Return
+    }
+
+    /// Source code: var a = 1; print a;
+
+    /// Tokens: [VAR, IDENTIFIER(a), EQUAL, NUMBER(1), SEMICOLON, PRINT, IDENTIFIER(a), SEMICOLON]
+
+    /// Declaration: Statement(VariableDeclaration { name: "a", initializer: Some(Literal::Number(1)) }),
+    ///              Statement(PrintStatement(Variable { name: "a" }))
+
+    /// Chunk: [CONSTANT 0 (1), DEFINE_GLOBAL "a", GET_GLOBAL "a", PRINT, RETURN]
+    #[test]
+    fn test_global_variable_get_and_print() {
+        // ---------- Arrange ----------
+        let name = "a".to_string();
+
+        let decl_var = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: name.clone(),
+                initializer: Some(Expr::Literal(Literal::Number(1.0))),
+            },
+            line: 1,
+        };
+
+        let decl_print = Declaration {
+            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
+                name: name.clone(),
+            })),
+            line: 1,
+        };
+
+        let declarations = vec![decl_var, decl_print];
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
+
+        if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
+            assert_eq!(
+                chunk.constant_at(idx),
+                Value::Object(Object::String(name.clone()))
+            ); // Check if global variable is "a"
+        } else {
+            panic!("Expected DefineGlobal opcode");
+        }
+
+        if let OpCode::GetGlobal(idx) = opcode_at(&chunk, 2) {
+            assert_eq!(chunk.constant_at(idx), Value::Object(Object::String(name))); // Check if global variable is "a"
+        } else {
+            panic!("Expected GetGlobal opcode");
+        }
+
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Print); // Check if fourth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Return); // Check if fifth opcode is Return
+    }
+
+    /// Source code: var a = 1; a = 2;
+
+    /// Tokens: [VAR, IDENTIFIER(a), EQUAL, NUMBER(1), SEMICOLON, IDENTIFIER(a), EQUAL, NUMBER(2), SEMICOLON]
+
+    /// Declaration: Statement(VariableDeclaration { name: "a", initializer: Some(Literal::Number(1)) }),
+    ///              Statement(ExprStatement(VariableAssignment { name: "a", value: Literal::Number(2) }))
+
+    /// Chunk: [CONSTANT 0 (1), DEFINE_GLOBAL "a", CONSTANT 1 (2), SET_GLOBAL "a", POP, RETURN]
+
+    #[test]
+    fn test_global_variable_assignment() {
+        // ---------- Arrange ----------
+        let name = "a".to_string();
+
+        let decl_var = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: name.clone(),
+                initializer: Some(Expr::Literal(Literal::Number(1.0))),
+            },
+            line: 1,
+        };
+
+        let decl_assign = Declaration {
+            inner: DeclarationKind::Statement(Statement::ExprStatement(Expr::VariableAssignment {
+                name: name.clone(),
+                value: Box::new(Expr::Literal(Literal::Number(2.0))),
+            })),
+            line: 1,
+        };
+
+        let declarations = vec![decl_var, decl_assign];
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
+
+        if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
+            assert_eq!(
+                chunk.constant_at(idx),
+                Value::Object(Object::String(name.clone()))
+            ); // Check if global variable is "a"
+        }
+
+        assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+
+        if let OpCode::SetGlobal(idx) = opcode_at(&chunk, 3) {
+            assert_eq!(
+                chunk.constant_at(idx),
+                Value::Object(Object::String(name.clone()))
+            ); // Check if global variable is "a"
+        }
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Return); // Check if sixth opcode is Return
     }
 }
 

@@ -740,6 +740,240 @@ mod tests {
         assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop
         assert_eq!(opcode_at(&chunk, 5), OpCode::Return); // Check if sixth opcode is Return
     }
+
+    // ---------- Tests: Local variables ----------
+
+    /// Source code:
+    /// {
+    ///     var a = 42;
+    ///     print a;
+    /// }
+
+    /// Tokens: [LEFT_BRACE, VAR, IDENTIFIER(a), EQUAL, NUMBER(42), SEMICOLON, PRINT, IDENTIFIER(a), SEMICOLON, RIGHT_BRACE]
+
+    /// Declarations:
+    /// Block([
+    ///     VariableDeclaration { name: "a", initializer: Some(Literal::Number(42)) },
+    ///     PrintStatement(Variable { name: "a" })
+    /// ])
+
+    /// Chunk: [CONSTANT 0 (42), SET_LOCAL 0, GET_LOCAL 0, PRINT, RETURN]
+
+    #[ignore = "reason: error with opcode"]
+    #[test]
+    fn test_local_variable_declaration_and_print() {
+        // ---------- Arrange ----------
+        let name = "a".to_string();
+
+        let decl_var = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: name.clone(),
+                initializer: Some(Expr::Literal(Literal::Number(42.0))),
+            },
+            line: 1,
+        };
+
+        let decl_print = Declaration {
+            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
+                name: name.clone(),
+            })),
+            line: 2,
+        };
+
+        let block = Declaration {
+            inner: DeclarationKind::Block(vec![decl_var, decl_print]),
+            line: 1,
+        };
+
+        let declarations = vec![block];
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
+
+        assert_eq!(opcode_at(&chunk, 1), OpCode::SetLocal(0)); // Check if second opcode is SetLocal 0
+
+        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(0)); // Check if third opcode is GetLocal 0
+
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Print); // Check if fourth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Return); // Check if fifth opcode is Return
+    }
+
+    /// Source code:
+    /// {
+    ///     var a = 1;
+    ///     a = 2;
+    /// }
+
+    /// Tokens: [LEFT_BRACE, VAR, IDENTIFIER(a), EQUAL, NUMBER(1), SEMICOLON, IDENTIFIER(a), EQUAL, NUMBER(2), SEMICOLON, RIGHT_BRACE]
+
+    /// Declarations:
+    /// Block([
+    ///     VariableDeclaration { name: "a", initializer: Some(Literal::Number(1)) },
+    ///     ExprStatement(VariableAssignment { name: "a", value: Literal::Number(2) })
+    /// ])
+
+    /// Chunk: [CONSTANT 0 (1), SET_LOCAL 0, CONSTANT 1 (2), SET_LOCAL 0, POP, RETURN]
+
+    #[ignore = "reason: error with opcode"]
+    #[test]
+    fn test_local_variable_assignment() {
+        // ---------- Arrange ----------
+        let name = "a".to_string();
+
+        let decl_var = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: name.clone(),
+                initializer: Some(Expr::Literal(Literal::Number(1.0))),
+            },
+            line: 1,
+        };
+
+        let decl_assign = Declaration {
+            inner: DeclarationKind::Statement(Statement::ExprStatement(Expr::VariableAssignment {
+                name: name.clone(),
+                value: Box::new(Expr::Literal(Literal::Number(2.0))),
+            })),
+            line: 2,
+        };
+
+        let block = Declaration {
+            inner: DeclarationKind::Block(vec![decl_var, decl_assign]),
+            line: 1,
+        };
+
+        let declarations = vec![block];
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
+
+        assert_eq!(opcode_at(&chunk, 1), OpCode::SetLocal(0)); // Check if second opcode is SetLocal 0
+
+        assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+
+        assert_eq!(opcode_at(&chunk, 3), OpCode::SetLocal(0)); // Check if fourth opcode is SetLocal 0
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop
+
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Return); // Check if sixth opcode is Return
+    }
+
+    /// Source code:
+    /// {
+    ///     var a = 1;
+    ///     {
+    ///         var b = 2;
+    ///         print a;
+    ///         print b;
+    ///     }
+    /// }
+
+    /// Tokens: [LEFT_BRACE, VAR, IDENTIFIER(a), EQUAL, NUMBER(1), SEMICOLON,
+    ///          LEFT_BRACE, VAR, IDENTIFIER(b), EQUAL, NUMBER(2), SEMICOLON,
+    ///          PRINT, IDENTIFIER(a), SEMICOLON,
+    ///          PRINT, IDENTIFIER(b), SEMICOLON,
+    ///          RIGHT_BRACE, RIGHT_BRACE]
+
+    /// Declarations:
+    /// Block([
+    ///     VariableDeclaration { name: "a", initializer: Some(Literal::Number(1)) },
+    ///     Block([
+    ///         VariableDeclaration { name: "b", initializer: Some(Literal::Number( 2)) },
+    ///         PrintStatement(Variable { name: "a" }),
+    ///         PrintStatement(Variable { name: "b" })
+    ///     ])
+    /// ])
+
+    /// Chunk: [CONSTANT 0 (1), SET_LOCAL 0, CONSTANT 1 (2), SET_LOCAL 1, GET_LOCAL 0, PRINT, GET_LOCAL 1, PRINT, RETURN]
+
+    #[ignore = "reason: error with opcode"]
+    #[test]
+    fn test_nested_local_scopes() {
+        // ---------- Arrange ----------
+        let decl_outer = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: "a".to_string(),
+                initializer: Some(Expr::Literal(Literal::Number(1.0))),
+            },
+            line: 1,
+        };
+
+        let decl_inner_b = Declaration {
+            inner: DeclarationKind::VariableDeclaration {
+                name: "b".to_string(),
+                initializer: Some(Expr::Literal(Literal::Number(2.0))),
+            },
+            line: 2,
+        };
+
+        let decl_print_a = Declaration {
+            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
+                name: "a".to_string(),
+            })),
+            line: 3,
+        };
+
+        let decl_print_b = Declaration {
+            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
+                name: "b".to_string(),
+            })),
+            line: 4,
+        };
+
+        let inner_block = Declaration {
+            inner: DeclarationKind::Block(vec![decl_inner_b, decl_print_a, decl_print_b]),
+            line: 2,
+        };
+
+        let outer_block = Declaration {
+            inner: DeclarationKind::Block(vec![decl_outer, inner_block]),
+            line: 1,
+        };
+
+        let declarations = vec![outer_block];
+        let mut compiler = Compiler::new();
+
+        // ---------- Act ----------
+
+        let chunk = compiler.compile(&declarations);
+
+        // ---------- Assert ----------
+
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
+
+        assert_eq!(opcode_at(&chunk, 1), OpCode::SetLocal(0)); // Check if second opcode is Set local variable 'a' at index 0
+
+        assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+
+        assert_eq!(opcode_at(&chunk, 3), OpCode::SetLocal(1)); // Check if fourth opcode is Set local variable 'b' at index 1
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(0)); // Check if fifth opcode is Get local variable 'a' at index 0
+
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Print); // Check if sixth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 6), OpCode::GetLocal(1)); // Check if seventh opcode is Get local variable 'b' at index 1
+
+        assert_eq!(opcode_at(&chunk, 7), OpCode::Print); // Check if eighth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 8), OpCode::Return); // Check if ninth opcode is Return
+    }
+
+    // TODO: add more tests for error cases
 }
 
 #[derive(Debug)]

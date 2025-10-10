@@ -512,7 +512,7 @@ mod tests {
     fn compile_source(source: String) -> Chunk {
         let tokens = Scanner::new(source).scan();
         let declarations = Parser::new(tokens).parse();
-        Compiler::new().compile(&declarations)
+        Compiler::new().compile(&declarations).unwrap()
     }
 
     #[test]

@@ -72,10 +72,14 @@ impl Rlox {
         log::info!("Compiling...");
         let mut compiler = Compiler::new();
         let chunk = compiler.compile(&declarations);
+        if let Err(error) = chunk {
+            eprintln!("Compilation error: {error}");
+            return;
+        };
 
         // Phase 4: Running
         log::info!("Running...");
-        let mut vm = Vm::new(chunk);
+        let mut vm = Vm::new(chunk.unwrap());
         let result = vm.run();
         if result.is_err() {
             std::process::exit(65);

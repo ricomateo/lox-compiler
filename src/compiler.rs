@@ -30,15 +30,15 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&mut self, declarations: &Vec<Declaration>) -> Chunk {
+    pub fn compile(&mut self, declarations: &Vec<Declaration>) -> Result<Chunk, CompilationError> {
         for declaration in declarations {
-            self.compile_declaration(declaration);
+            self.compile_declaration(declaration)?;
         }
         self.end_compiler();
-        self.chunk.clone()
+        Ok(self.chunk.clone())
     }
 
-    fn compile_declaration(&mut self, declaration: &Declaration) {
+    fn compile_declaration(&mut self, declaration: &Declaration) -> Result<(), CompilationError> {
         self.current_line = declaration.line;
         match &declaration.inner {
             DeclarationKind::Statement(Statement::PrintStatement(expr)) => {
@@ -55,10 +55,9 @@ impl Compiler {
                 } else {
                     self.emit_byte(OpCode::Nil, self.current_line);
                 }
-                // TODO: handle error
-                self.declare_variable(name.clone()).unwrap();
+                self.declare_variable(name.clone())?;
                 if self.scope_depth > 0 {
-                    return;
+                    return Ok(());
                 }
                 let constant_index = self.identifier_constant(name.clone());
                 self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
@@ -66,11 +65,12 @@ impl Compiler {
             DeclarationKind::Block(declarations) => {
                 self.begin_scope();
                 for declaration in declarations {
-                    self.compile_declaration(declaration);
+                    self.compile_declaration(declaration)?;
                 }
                 self.end_scope();
             }
         }
+        Ok(())
     }
 
     fn compile_expr(&mut self, expr: &Expr) {
@@ -137,7 +137,7 @@ impl Compiler {
                 break;
             }
             if name == local.name {
-                return Err(CompilationError::DuplicateLocalVariable);
+                return Err(CompilationError::DuplicateLocalVariable(name));
             }
         }
 
@@ -298,7 +298,7 @@ mod tests {
             line: 0,
         };
         let declarations = vec![declaration];
-        compiler.compile(&declarations)
+        compiler.compile(&declarations).unwrap()
     }
 
     /// Get the opcode at a specific index in the chunk
@@ -566,7 +566,7 @@ mod tests {
         let mut compiler = Compiler::new();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -608,7 +608,7 @@ mod tests {
         let mut compiler = Compiler::new();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
         assert_eq!(opcode_at(&chunk, 0), OpCode::Nil); // Check if first opcode is Nil
@@ -654,7 +654,7 @@ mod tests {
         let mut compiler = Compiler::new();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -714,7 +714,7 @@ mod tests {
         let mut compiler = Compiler::new();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -789,7 +789,7 @@ mod tests {
         let mut compiler = Compiler::new();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -852,7 +852,7 @@ mod tests {
 
         // ---------- Act ----------
 
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
 
@@ -948,7 +948,7 @@ mod tests {
 
         // ---------- Act ----------
 
-        let chunk = compiler.compile(&declarations);
+        let chunk = compiler.compile(&declarations).unwrap();
 
         // ---------- Assert ----------
 
@@ -976,7 +976,8 @@ mod tests {
     // TODO: add more tests for error cases
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum CompilationError {
-    DuplicateLocalVariable,
+    #[error("Duplicate local variable: '{0}'")]
+    DuplicateLocalVariable(String),
 }

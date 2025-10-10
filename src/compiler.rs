@@ -13,6 +13,8 @@ pub struct Compiler {
     current_line: usize,
     locals: Vec<Local>,
     scope_depth: usize,
+    /// Contains the identifiers of the defined global variables
+    constant_identifiers: Vec<String>,
 }
 
 pub struct Local {
@@ -27,6 +29,7 @@ impl Compiler {
             current_line: 0,
             locals: Vec::new(),
             scope_depth: 0,
+            constant_identifiers: Vec::new(),
         }
     }
 
@@ -42,16 +45,16 @@ impl Compiler {
         self.current_line = declaration.line;
         match &declaration.inner {
             DeclarationKind::Statement(Statement::PrintStatement(expr)) => {
-                self.compile_expr(&expr);
+                self.compile_expr(&expr)?;
                 self.emit_byte(OpCode::Print, self.current_line);
             }
             DeclarationKind::Statement(Statement::ExprStatement(expr)) => {
-                self.compile_expr(&expr);
+                self.compile_expr(&expr)?;
                 self.emit_byte(OpCode::Pop, self.current_line);
             }
             DeclarationKind::VariableDeclaration { name, initializer } => {
                 if let Some(expr) = initializer {
-                    self.compile_expr(&expr);
+                    self.compile_expr(&expr)?;
                 } else {
                     self.emit_byte(OpCode::Nil, self.current_line);
                 }
@@ -73,43 +76,62 @@ impl Compiler {
         Ok(())
     }
 
-    fn compile_expr(&mut self, expr: &Expr) {
+    fn compile_expr(&mut self, expr: &Expr) -> Result<(), CompilationError> {
         match expr {
             Expr::Binary {
                 left,
                 operator,
                 right,
             } => {
-                self.compile_binary(operator, left, right);
+                self.compile_binary(operator, left, right)?;
             }
             Expr::Unary { operator, right } => {
-                self.compile_unary(operator, right);
+                self.compile_unary(operator, right)?;
             }
             Expr::Literal(literal) => {
                 self.compile_literal(literal);
             }
             Expr::Grouping { expression } => {
-                self.compile_expr(expression);
+                self.compile_expr(expression)?;
             }
             Expr::Variable { name } => {
                 if let Some(local_index) = self.resolve_local(name) {
                     self.emit_byte(OpCode::GetLocal(local_index), self.current_line);
                 } else {
+                    // If the variable does not exist as local nor global, then it is undefined
+                    if !self.global_variable_defined(name) {
+                        return Err(CompilationError::UndefinedVariable(
+                            name.clone(),
+                            self.current_line,
+                        ));
+                    }
                     let constant_index = self.identifier_constant(name.clone());
                     self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
                 }
             }
             Expr::VariableAssignment { name, value } => {
                 // TODO: revisar bien esto
-                self.compile_expr(value);
+                self.compile_expr(value)?;
                 if let Some(local_index) = self.resolve_local(name) {
                     self.emit_byte(OpCode::SetLocal(local_index), self.current_line);
                 } else {
+                    // If the variable does not exist as local nor global, then it is undefined
+                    if !self.global_variable_defined(name) {
+                        return Err(CompilationError::UndefinedVariable(
+                            name.clone(),
+                            self.current_line,
+                        ));
+                    }
                     let constant_index = self.identifier_constant(name.clone());
                     self.define_variable(constant_index);
                 }
             }
         }
+        Ok(())
+    }
+
+    fn global_variable_defined(&mut self, name: &String) -> bool {
+        self.constant_identifiers.contains(&name)
     }
 
     fn define_variable(&mut self, constant_index: usize) {
@@ -200,12 +222,20 @@ impl Compiler {
     }
 
     fn identifier_constant(&mut self, name: String) -> usize {
+        // Here we add the identifier in the constant_identifiers vec
+        // This is then used to check whether the global variable exists
+        self.constant_identifiers.push(name.clone());
         self.make_constant(Value::Object(Object::String(name)))
     }
 
-    fn compile_binary(&mut self, operator: &Token, left: &Expr, right: &Expr) {
-        self.compile_expr(left);
-        self.compile_expr(right);
+    fn compile_binary(
+        &mut self,
+        operator: &Token,
+        left: &Expr,
+        right: &Expr,
+    ) -> Result<(), CompilationError> {
+        self.compile_expr(left)?;
+        self.compile_expr(right)?;
 
         match operator.kind {
             TokenType::Plus => self.emit_byte(OpCode::Add, operator.line),
@@ -238,16 +268,18 @@ impl Compiler {
             }
             _ => unreachable!(),
         }
+        Ok(())
     }
 
-    fn compile_unary(&mut self, operator: &Token, right: &Expr) {
-        self.compile_expr(right);
+    fn compile_unary(&mut self, operator: &Token, right: &Expr) -> Result<(), CompilationError> {
+        self.compile_expr(right)?;
 
         match operator.kind {
             TokenType::Minus => self.emit_byte(OpCode::Negate, operator.line),
             TokenType::Bang => self.emit_byte(OpCode::Not, operator.line),
             _ => unreachable!(),
         }
+        Ok(())
     }
 
     fn compile_literal(&mut self, literal: &Literal) {
@@ -275,6 +307,8 @@ impl Compiler {
 pub enum CompilationError {
     #[error("Duplicate local variable: '{0}'")]
     DuplicateLocalVariable(String),
+    #[error("Undefined variable: '{0}' at line {1}")]
+    UndefinedVariable(String, usize),
 }
 
 #[cfg(test)]
@@ -805,8 +839,36 @@ mod tests {
         assert_eq!(error, expected_error);
     }
 
-    // TODO: add more tests for error cases
-    // 1. Variable used in its own initializer: var a = a;
-    // 2. Variable used outside its scope: { var a = 1; } print a;
-    // 3. Assignment to an undefined variable: a = 1;
+    #[test]
+    fn test_undefined_variable_error() {
+        // Test variable declaration with undefined variable
+        let source = "{
+            var a = a;
+        }";
+
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 2;
+        let expected_error = CompilationError::UndefinedVariable("a".to_string(), line);
+        assert_eq!(error, expected_error);
+
+        // Test assigning an undefined variable
+        let source = "{
+            a = 1;
+        }";
+
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let expected_error = CompilationError::UndefinedVariable("a".to_string(), line);
+        assert_eq!(error, expected_error);
+
+        // Test assigning an undefined variable
+        let source = "{
+            var a = 1;
+        }
+        print a;";
+
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 4;
+        let expected_error = CompilationError::UndefinedVariable("a".to_string(), line);
+        assert_eq!(error, expected_error);
+    }
 }

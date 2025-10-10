@@ -271,11 +271,18 @@ impl Compiler {
     }
 }
 
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum CompilationError {
+    #[error("Duplicate local variable: '{0}'")]
+    DuplicateLocalVariable(String),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::chunk::{Chunk, OpCode, Value};
-    use crate::scanner::{Token, TokenType};
+    use crate::parser::Parser;
+    use crate::scanner::{Scanner, Token, TokenType};
 
     // ---------- Helpers ----------
 
@@ -974,10 +981,25 @@ mod tests {
     }
 
     // TODO: add more tests for error cases
-}
 
-#[derive(Debug, thiserror::Error)]
-pub enum CompilationError {
-    #[error("Duplicate local variable: '{0}'")]
-    DuplicateLocalVariable(String),
+    fn compile_source(source: String) -> Result<Chunk, CompilationError> {
+        let tokens = Scanner::new(source).scan();
+        let declarations = Parser::new(tokens).parse();
+        Compiler::new().compile(&declarations)
+    }
+
+    #[test]
+    fn test_duplicate_local_variable_error() {
+        let source = "{
+            var foo = 1;
+            var foo = 2;
+        }";
+
+        let Err(error) = compile_source(source.to_string()) else {
+            panic!("Expected DuplicateLocalVariable error");
+        };
+
+        let expected_error = CompilationError::DuplicateLocalVariable("foo".to_string());
+        assert_eq!(error, expected_error);
+    }
 }

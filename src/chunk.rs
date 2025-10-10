@@ -121,8 +121,8 @@ impl Chunk {
             }
             OpCode::GetGlobal(index) => self.constant_instruction("OP_GET_GLOBAL", offset, *index),
             OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
-            OpCode::GetLocal(slot) => self.byte_instruction("OP_SET_GLOBAL", offset, *slot),
-            OpCode::SetLocal(slot) => self.byte_instruction("OP_SET_GLOBAL", offset, *slot),
+            OpCode::GetLocal(slot) => self.byte_instruction("OP_GET_LOCAL", offset, *slot),
+            OpCode::SetLocal(slot) => self.byte_instruction("OP_SET_LOCAL", offset, *slot),
         }
     }
 

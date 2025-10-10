@@ -998,10 +998,7 @@ mod tests {
             var foo = 2;
         }";
 
-        let Err(error) = compile_source(source.to_string()) else {
-            panic!("Expected DuplicateLocalVariable error");
-        };
-
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
         let expected_error = CompilationError::DuplicateLocalVariable("foo".to_string());
         assert_eq!(error, expected_error);
     }

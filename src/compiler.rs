@@ -757,9 +757,8 @@ mod tests {
     ///     PrintStatement(Variable { name: "a" })
     /// ])
 
-    /// Chunk: [CONSTANT 0 (42), SET_LOCAL 0, GET_LOCAL 0, PRINT, RETURN]
+    /// Chunk: [CONSTANT 0 (42), GET_LOCAL 0, PRINT, POP, RETURN]
 
-    #[ignore = "reason: error with opcode"]
     #[test]
     fn test_local_variable_declaration_and_print() {
         // ---------- Arrange ----------
@@ -795,13 +794,13 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
 
-        assert_eq!(opcode_at(&chunk, 1), OpCode::SetLocal(0)); // Check if second opcode is SetLocal 0
+        assert_eq!(opcode_at(&chunk, 1), OpCode::GetLocal(0)); // Check if third opcode is GetLocal 0
 
-        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(0)); // Check if third opcode is GetLocal 0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Print); // Check if fourth opcode is Print
 
-        assert_eq!(opcode_at(&chunk, 3), OpCode::Print); // Check if fourth opcode is Print
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop); // Check if fifth opcode is Pop
 
-        assert_eq!(opcode_at(&chunk, 4), OpCode::Return); // Check if fifth opcode is Return
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Return); // Check if sixth opcode is Return
     }
 
     /// Source code:
@@ -818,9 +817,8 @@ mod tests {
     ///     ExprStatement(VariableAssignment { name: "a", value: Literal::Number(2) })
     /// ])
 
-    /// Chunk: [CONSTANT 0 (1), SET_LOCAL 0, CONSTANT 1 (2), SET_LOCAL 0, POP, RETURN]
+    /// Chunk: [CONSTANT 0 (1), CONSTANT 1 (2), SET_LOCAL 0, POP, POP, RETURN]
 
-    #[ignore = "reason: error with opcode"]
     #[test]
     fn test_local_variable_assignment() {
         // ---------- Arrange ----------
@@ -859,14 +857,14 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
 
-        assert_eq!(opcode_at(&chunk, 1), OpCode::SetLocal(0)); // Check if second opcode is SetLocal 0
+        assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
-        assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
-        assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::SetLocal(0)); // Check if third opcode is Set local variable 'a' at index 0
 
-        assert_eq!(opcode_at(&chunk, 3), OpCode::SetLocal(0)); // Check if fourth opcode is SetLocal 0
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop); // Check if fourth opcode is Pop
 
-        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop fifth
 
         assert_eq!(opcode_at(&chunk, 5), OpCode::Return); // Check if sixth opcode is Return
     }
@@ -897,9 +895,8 @@ mod tests {
     ///     ])
     /// ])
 
-    /// Chunk: [CONSTANT 0 (1), SET_LOCAL 0, CONSTANT 1 (2), SET_LOCAL 1, GET_LOCAL 0, PRINT, GET_LOCAL 1, PRINT, RETURN]
+    /// Chunk: [CONSTANT 0 (1), CONSTANT 1 (2), GET_LOCAL 0, PRINT, GET_LOCAL 1, PRINT, POP, POP, RETURN]
 
-    #[ignore = "reason: error with opcode"]
     #[test]
     fn test_nested_local_scopes() {
         // ---------- Arrange ----------
@@ -955,25 +952,31 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
 
-        assert_eq!(opcode_at(&chunk, 1), OpCode::SetLocal(0)); // Check if second opcode is Set local variable 'a' at index 0
+        assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
-        assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
-        assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(0)); // Check if third opcode is Get local variable 'a' at index 0
 
-        assert_eq!(opcode_at(&chunk, 3), OpCode::SetLocal(1)); // Check if fourth opcode is Set local variable 'b' at index 1
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Print); // Check if fourth opcode is Print
 
-        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(0)); // Check if fifth opcode is Get local variable 'a' at index 0
+        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(1)); // Check if fifth opcode is Get local variable 'b' at index 1
 
         assert_eq!(opcode_at(&chunk, 5), OpCode::Print); // Check if sixth opcode is Print
 
-        assert_eq!(opcode_at(&chunk, 6), OpCode::GetLocal(1)); // Check if seventh opcode is Get local variable 'b' at index 1
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop); // Check if seventh opcode is Pop
 
-        assert_eq!(opcode_at(&chunk, 7), OpCode::Print); // Check if eighth opcode is Print
+        assert_eq!(opcode_at(&chunk, 7), OpCode::Pop); // Check if eighth opcode is Pop
 
         assert_eq!(opcode_at(&chunk, 8), OpCode::Return); // Check if ninth opcode is Return
     }
 
+    // ---------- Tests: Local variable errors ----------
+
     // TODO: add more tests for error cases
+    // 1. Variable used in its own initializer: var a = a;
+    // 2. Variable used outside its scope: { var a = 1; } print a;
+    // 3. Assignment to an undefined variable: a = 1;
+    // 4. Redeclaration of a variable in the same scope: var a = 1; var a = 2;
 }
 
 #[derive(Debug)]

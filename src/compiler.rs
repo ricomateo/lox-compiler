@@ -286,21 +286,11 @@ mod tests {
 
     // ---------- Helpers ----------
 
+    /// Compile source code into a bytecode chunk
     fn compile_source(source: String) -> Result<Chunk, CompilationError> {
         let tokens = Scanner::new(source).scan();
         let declarations = Parser::new(tokens).parse();
         Compiler::new().compile(&declarations)
-    }
-
-    /// Compile an expression and return chunk
-    fn compile(expr: Expr) -> Chunk {
-        let mut compiler = Compiler::new();
-        let declaration = Declaration {
-            inner: DeclarationKind::Statement(Statement::ExprStatement(expr)),
-            line: 0,
-        };
-        let declarations = vec![declaration];
-        compiler.compile(&declarations).unwrap()
     }
 
     /// Get the opcode at a specific index in the chunk
@@ -324,8 +314,7 @@ mod tests {
 
     #[test]
     fn test_literal_number() {
-        let expr = Expr::Literal(Literal::Number(42.0));
-        let chunk = compile(expr);
+        let chunk = compile_source("42.0;".to_string()).unwrap();
 
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
@@ -338,9 +327,9 @@ mod tests {
 
     #[test]
     fn test_literal_bool_true_false_nil() {
-        let chunk_true = compile(Expr::Literal(Literal::Bool(true)));
-        let chunk_false = compile(Expr::Literal(Literal::Bool(false)));
-        let chunk_nil = compile(Expr::Literal(Literal::Nil));
+        let chunk_true = compile_source("true;".to_string()).unwrap();
+        let chunk_false = compile_source("false;".to_string()).unwrap();
+        let chunk_nil = compile_source("nil;".to_string()).unwrap();
 
         assert_eq!(opcode_at(&chunk_true, 0), OpCode::True); // Check if first opcode is True
         assert!(matches!(opcode_at(&chunk_true, 1), OpCode::Pop)); // Check if second opcode is Pop
@@ -804,12 +793,6 @@ mod tests {
 
     // ---------- Tests: Local variable errors ----------
 
-    // TODO: add more tests for error cases
-    // 1. Variable used in its own initializer: var a = a;
-    // 2. Variable used outside its scope: { var a = 1; } print a;
-    // 3. Assignment to an undefined variable: a = 1;
-    // 4. Redeclaration of a variable in the same scope: var a = 1; var a = 2;
-
     #[test]
     fn test_duplicate_local_variable_error() {
         let source = "{
@@ -824,4 +807,9 @@ mod tests {
         let expected_error = CompilationError::DuplicateLocalVariable("foo".to_string());
         assert_eq!(error, expected_error);
     }
+
+    // TODO: add more tests for error cases
+    // 1. Variable used in its own initializer: var a = a;
+    // 2. Variable used outside its scope: { var a = 1; } print a;
+    // 3. Assignment to an undefined variable: a = 1;
 }

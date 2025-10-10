@@ -282,19 +282,14 @@ mod tests {
     use super::*;
     use crate::chunk::{Chunk, OpCode, Value};
     use crate::parser::Parser;
-    use crate::scanner::{Scanner, Token, TokenType};
+    use crate::scanner::Scanner;
 
     // ---------- Helpers ----------
 
-    /// Create a token
-    fn token(kind: TokenType) -> Token {
-        Token {
-            kind,
-            start: 0,
-            length: 0,
-            line: 1,
-            lexeme: "".to_string(),
-        }
+    fn compile_source(source: String) -> Result<Chunk, CompilationError> {
+        let tokens = Scanner::new(source).scan();
+        let declarations = Parser::new(tokens).parse();
+        Compiler::new().compile(&declarations)
     }
 
     /// Compile an expression and return chunk
@@ -369,11 +364,9 @@ mod tests {
 
     #[test]
     fn test_unary_minus() {
-        let expr = Expr::Unary {
-            operator: token(TokenType::Minus),
-            right: Box::new(Expr::Literal(Literal::Number(3.0))),
-        };
-        let chunk = compile(expr);
+        let source = "-3.0;".to_string();
+
+        let chunk = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(3.0)); // Check if constant value is 3.0
@@ -389,11 +382,9 @@ mod tests {
 
     #[test]
     fn test_unary_not() {
-        let expr = Expr::Unary {
-            operator: token(TokenType::Bang),
-            right: Box::new(Expr::Literal(Literal::Bool(false))),
-        };
-        let chunk = compile(expr);
+        let source = "!false;".to_string();
+
+        let chunk = compile_source(source).unwrap();
 
         assert_eq!(opcode_at(&chunk, 0), OpCode::False); // Check if first opcode is False
         assert_eq!(opcode_at(&chunk, 1), OpCode::Not); // Check if second opcode is Not
@@ -408,12 +399,9 @@ mod tests {
 
     #[test]
     fn test_binary_addition() {
-        let expr = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(1.0))),
-            operator: token(TokenType::Plus),
-            right: Box::new(Expr::Literal(Literal::Number(2.0))),
-        };
-        let chunk = compile(expr);
+        let source = "1.0 + 2.0;".to_string();
+
+        let chunk = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -432,12 +420,9 @@ mod tests {
 
     #[test]
     fn test_binary_comparison_equal_not_equal() {
-        let expr_eq = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(1.0))),
-            operator: token(TokenType::EqualEqual),
-            right: Box::new(Expr::Literal(Literal::Number(1.0))),
-        };
-        let chunk_eq = compile(expr_eq);
+        let source = "1.0 == 1.0;".to_string();
+
+        let chunk_eq = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk_eq, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_eq, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -447,12 +432,8 @@ mod tests {
         assert_eq!(opcode_at(&chunk_eq, 3), OpCode::Pop); // Check if fourth opcode is Pop
         assert_eq!(opcode_at(&chunk_eq, 4), OpCode::Return);
 
-        let expr_ne = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(1.0))),
-            operator: token(TokenType::BangEqual),
-            right: Box::new(Expr::Literal(Literal::Number(2.0))),
-        };
-        let chunk_ne = compile(expr_ne);
+        let source = "1.0 != 2.0;".to_string();
+        let chunk_ne = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk_ne, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_ne, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -472,12 +453,9 @@ mod tests {
 
     #[test]
     fn test_binary_comparison_greater_less() {
-        let expr_gt = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(2.0))),
-            operator: token(TokenType::Greater),
-            right: Box::new(Expr::Literal(Literal::Number(1.0))),
-        };
-        let chunk_gt = compile(expr_gt);
+        let source = "2.0 > 1.0;".to_string();
+
+        let chunk_gt = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk_gt, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_gt, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -487,12 +465,8 @@ mod tests {
         assert_eq!(opcode_at(&chunk_gt, 3), OpCode::Pop); // Check if fourth opcode is Pop
         assert_eq!(opcode_at(&chunk_gt, 4), OpCode::Return);
 
-        let expr_lt = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(1.0))),
-            operator: token(TokenType::Less),
-            right: Box::new(Expr::Literal(Literal::Number(2.0))),
-        };
-        let chunk_lt = compile(expr_lt);
+        let source = "1.0 < 2.0;".to_string();
+        let chunk_lt = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk_lt, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_lt, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -511,12 +485,8 @@ mod tests {
 
     #[test]
     fn test_binary_comparison_greater_equal_less_equal() {
-        let expr_ge = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(2.0))),
-            operator: token(TokenType::GreaterEqual),
-            right: Box::new(Expr::Literal(Literal::Number(2.0))),
-        };
-        let chunk_ge = compile(expr_ge);
+        let source = "2.0 >= 2.0;".to_string();
+        let chunk_ge = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk_ge, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_ge, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -527,12 +497,8 @@ mod tests {
         assert_eq!(opcode_at(&chunk_ge, 4), OpCode::Pop); // Check if fifth opcode is Pop
         assert_eq!(opcode_at(&chunk_ge, 5), OpCode::Return);
 
-        let expr_le = Expr::Binary {
-            left: Box::new(Expr::Literal(Literal::Number(2.0))),
-            operator: token(TokenType::LessEqual),
-            right: Box::new(Expr::Literal(Literal::Number(2.0))),
-        };
-        let chunk_le = compile(expr_le);
+        let source = "2.0 <= 2.0;".to_string();
+        let chunk_le = compile_source(source).unwrap();
 
         assert!(matches!(opcode_at(&chunk_le, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert!(matches!(opcode_at(&chunk_le, 1), OpCode::Constant(_))); // Check if second opcode is Constant
@@ -557,23 +523,10 @@ mod tests {
     #[test]
     fn test_global_variable_declaration() {
         // ---------- Arrange ----------
-        let name = "a".to_string();
-        let initializer = Some(Expr::Literal(Literal::Number(42.0)));
-
-        let declaration = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: name.clone(),
-                initializer,
-            },
-            line: 1,
-        };
-
-        let declarations = vec![declaration];
-
-        let mut compiler = Compiler::new();
+        let source = "var a = 42;".to_string();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -581,7 +534,10 @@ mod tests {
 
         // DEFINE_GLOBAL (with constant "a")
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(chunk.constant_at(idx), Value::Object(Object::String(name))); // Check if global variable is "a"
+            assert_eq!(
+                chunk.constant_at(idx),
+                Value::Object(Object::String("a".to_string()))
+            ); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
@@ -600,28 +556,19 @@ mod tests {
     #[test]
     fn test_global_variable_declaration_without_initializer() {
         // ---------- Arrange ----------
-        let name = "a".to_string();
-
-        let declaration = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: name.clone(),
-                initializer: None,
-            },
-            line: 1,
-        };
-
-        let declarations = vec![declaration];
-
-        let mut compiler = Compiler::new();
+        let source = "var a;".to_string();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
         assert_eq!(opcode_at(&chunk, 0), OpCode::Nil); // Check if first opcode is Nil
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(chunk.constant_at(idx), Value::Object(Object::String(name))); // Check if global variable is "a"
+            assert_eq!(
+                chunk.constant_at(idx),
+                Value::Object(Object::String("a".to_string()))
+            ); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
@@ -640,28 +587,10 @@ mod tests {
     #[test]
     fn test_global_variable_get_and_print() {
         // ---------- Arrange ----------
-        let name = "a".to_string();
-
-        let decl_var = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: name.clone(),
-                initializer: Some(Expr::Literal(Literal::Number(1.0))),
-            },
-            line: 1,
-        };
-
-        let decl_print = Declaration {
-            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
-                name: name.clone(),
-            })),
-            line: 1,
-        };
-
-        let declarations = vec![decl_var, decl_print];
-        let mut compiler = Compiler::new();
+        let source = "var a = 1; print a;".to_string();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -670,14 +599,17 @@ mod tests {
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
             assert_eq!(
                 chunk.constant_at(idx),
-                Value::Object(Object::String(name.clone()))
+                Value::Object(Object::String("a".to_string()))
             ); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
 
         if let OpCode::GetGlobal(idx) = opcode_at(&chunk, 2) {
-            assert_eq!(chunk.constant_at(idx), Value::Object(Object::String(name))); // Check if global variable is "a"
+            assert_eq!(
+                chunk.constant_at(idx),
+                Value::Object(Object::String("a".to_string()))
+            ); // Check if global variable is "a"
         } else {
             panic!("Expected GetGlobal opcode");
         }
@@ -699,29 +631,10 @@ mod tests {
     #[test]
     fn test_global_variable_assignment() {
         // ---------- Arrange ----------
-        let name = "a".to_string();
-
-        let decl_var = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: name.clone(),
-                initializer: Some(Expr::Literal(Literal::Number(1.0))),
-            },
-            line: 1,
-        };
-
-        let decl_assign = Declaration {
-            inner: DeclarationKind::Statement(Statement::ExprStatement(Expr::VariableAssignment {
-                name: name.clone(),
-                value: Box::new(Expr::Literal(Literal::Number(2.0))),
-            })),
-            line: 1,
-        };
-
-        let declarations = vec![decl_var, decl_assign];
-        let mut compiler = Compiler::new();
+        let source = "var a = 1; a = 2;".to_string();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -730,7 +643,7 @@ mod tests {
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
             assert_eq!(
                 chunk.constant_at(idx),
-                Value::Object(Object::String(name.clone()))
+                Value::Object(Object::String("a".to_string()))
             ); // Check if global variable is "a"
         }
 
@@ -740,7 +653,7 @@ mod tests {
         if let OpCode::SetGlobal(idx) = opcode_at(&chunk, 3) {
             assert_eq!(
                 chunk.constant_at(idx),
-                Value::Object(Object::String(name.clone()))
+                Value::Object(Object::String("a".to_string()))
             ); // Check if global variable is "a"
         }
 
@@ -769,33 +682,10 @@ mod tests {
     #[test]
     fn test_local_variable_declaration_and_print() {
         // ---------- Arrange ----------
-        let name = "a".to_string();
-
-        let decl_var = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: name.clone(),
-                initializer: Some(Expr::Literal(Literal::Number(42.0))),
-            },
-            line: 1,
-        };
-
-        let decl_print = Declaration {
-            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
-                name: name.clone(),
-            })),
-            line: 2,
-        };
-
-        let block = Declaration {
-            inner: DeclarationKind::Block(vec![decl_var, decl_print]),
-            line: 1,
-        };
-
-        let declarations = vec![block];
-        let mut compiler = Compiler::new();
+        let source = "{ var a = 42; print a; }".to_string();
 
         // ---------- Act ----------
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
@@ -829,35 +719,11 @@ mod tests {
     #[test]
     fn test_local_variable_assignment() {
         // ---------- Arrange ----------
-        let name = "a".to_string();
-
-        let decl_var = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: name.clone(),
-                initializer: Some(Expr::Literal(Literal::Number(1.0))),
-            },
-            line: 1,
-        };
-
-        let decl_assign = Declaration {
-            inner: DeclarationKind::Statement(Statement::ExprStatement(Expr::VariableAssignment {
-                name: name.clone(),
-                value: Box::new(Expr::Literal(Literal::Number(2.0))),
-            })),
-            line: 2,
-        };
-
-        let block = Declaration {
-            inner: DeclarationKind::Block(vec![decl_var, decl_assign]),
-            line: 1,
-        };
-
-        let declarations = vec![block];
-        let mut compiler = Compiler::new();
+        let source = "{ var a = 1; a = 2; }".to_string();
 
         // ---------- Act ----------
 
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
 
@@ -907,52 +773,11 @@ mod tests {
     #[test]
     fn test_nested_local_scopes() {
         // ---------- Arrange ----------
-        let decl_outer = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: "a".to_string(),
-                initializer: Some(Expr::Literal(Literal::Number(1.0))),
-            },
-            line: 1,
-        };
-
-        let decl_inner_b = Declaration {
-            inner: DeclarationKind::VariableDeclaration {
-                name: "b".to_string(),
-                initializer: Some(Expr::Literal(Literal::Number(2.0))),
-            },
-            line: 2,
-        };
-
-        let decl_print_a = Declaration {
-            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
-                name: "a".to_string(),
-            })),
-            line: 3,
-        };
-
-        let decl_print_b = Declaration {
-            inner: DeclarationKind::Statement(Statement::PrintStatement(Expr::Variable {
-                name: "b".to_string(),
-            })),
-            line: 4,
-        };
-
-        let inner_block = Declaration {
-            inner: DeclarationKind::Block(vec![decl_inner_b, decl_print_a, decl_print_b]),
-            line: 2,
-        };
-
-        let outer_block = Declaration {
-            inner: DeclarationKind::Block(vec![decl_outer, inner_block]),
-            line: 1,
-        };
-
-        let declarations = vec![outer_block];
-        let mut compiler = Compiler::new();
+        let source = "{ var a = 1; { var b = 2; print a; print b; } }".to_string();
 
         // ---------- Act ----------
 
-        let chunk = compiler.compile(&declarations).unwrap();
+        let chunk = compile_source(source).unwrap();
 
         // ---------- Assert ----------
 
@@ -984,12 +809,6 @@ mod tests {
     // 2. Variable used outside its scope: { var a = 1; } print a;
     // 3. Assignment to an undefined variable: a = 1;
     // 4. Redeclaration of a variable in the same scope: var a = 1; var a = 2;
-
-    fn compile_source(source: String) -> Result<Chunk, CompilationError> {
-        let tokens = Scanner::new(source).scan();
-        let declarations = Parser::new(tokens).parse();
-        Compiler::new().compile(&declarations)
-    }
 
     #[test]
     fn test_duplicate_local_variable_error() {

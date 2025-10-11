@@ -36,6 +36,8 @@ pub enum OpCode {
     GetGlobal(usize),
     SetLocal(usize),
     SetGlobal(usize),
+    Jump(usize),
+    JumpIfFalse(usize),
     Return,
 }
 
@@ -123,6 +125,10 @@ impl Chunk {
             OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
             OpCode::GetLocal(slot) => self.byte_instruction("OP_GET_LOCAL", offset, *slot),
             OpCode::SetLocal(slot) => self.byte_instruction("OP_SET_LOCAL", offset, *slot),
+            OpCode::Jump(offset_val) => self.jump_instruction("OP_JUMP", *offset_val, offset),
+            OpCode::JumpIfFalse(offset_val) => {
+                self.jump_instruction("OP_JUMP_IF_FALSE", *offset_val, offset)
+            }
         }
     }
 
@@ -150,6 +156,11 @@ impl Chunk {
 
         // In the book, this function returns offset + 2 because the constant index is stored separately from Opcode::Constant
         // In our implementation, we combine them into a single element (Opcode::Constant(constant_index)), so we return offset + 1
+        offset + 1
+    }
+
+    fn jump_instruction(&self, name: &str, jump_offset: usize, offset: usize) -> usize {
+        println!("{:<16} {:>4} -> {}", name, offset, offset + 1 + jump_offset);
         offset + 1
     }
 }

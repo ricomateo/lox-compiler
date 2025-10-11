@@ -182,6 +182,15 @@ impl Vm {
                     // and stores it in the stack slot corresponding to the local variable
                     self.stack[slot] = self.peek(0).unwrap().clone();
                 }
+                OpCode::Jump(offset) => {
+                    self.instruction_pointer += offset;
+                }
+                OpCode::JumpIfFalse(offset) => {
+                    let condition = self.stack.pop().unwrap();
+                    if Self::is_falsey(&condition) {
+                        self.instruction_pointer += offset;
+                    }
+                }
             }
         }
     }

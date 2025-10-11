@@ -43,4 +43,9 @@ pub enum DeclarationKind {
 pub enum Statement {
     ExprStatement(Expr),
     PrintStatement(Expr),
+    IfStatement {
+        condition: Expr,
+        then_branch: Box<Declaration>,
+        else_branch: Option<Box<Declaration>>,
+    },
 }

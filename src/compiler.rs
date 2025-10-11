@@ -74,6 +74,39 @@ impl Compiler {
                 }
                 self.end_scope();
             }
+            DeclarationKind::Statement(Statement::IfStatement {
+                condition,
+                then_branch,
+                else_branch,
+            }) => {
+                self.compile_expr(condition)?;
+
+                // Emit jumpp if false (placeholder)
+                let then_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                // Pop the condition
+                self.emit_byte(OpCode::Pop, self.current_line);
+
+                // Compile then branch
+                self.compile_declaration(then_branch)?;
+
+                // Emit jump over else
+                let else_jump = self.emit_jump(OpCode::Jump(0));
+
+                // Patch the jump to else branch
+                self.patch_jump(then_jump);
+
+                // Pop the condition again if else exists
+                self.emit_byte(OpCode::Pop, self.current_line);
+
+                // Compile else branch if it exists
+                if let Some(else_branch) = else_branch {
+                    self.compile_declaration(else_branch)?;
+                }
+
+                // Patch else jump
+                self.patch_jump(else_jump);
+            }
         }
         Ok(())
     }

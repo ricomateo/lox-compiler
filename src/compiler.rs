@@ -1,3 +1,5 @@
+use std::os::unix::raw::off_t;
+
 use crate::{
     chunk::{Chunk, Object, OpCode, Value},
     declaration::{Declaration, DeclarationKind, Statement},
@@ -176,6 +178,25 @@ impl Compiler {
     }
 
     // ---------- Helpers ----------
+
+    // Emit a jump instruction with a placeholder offset
+    // Returns the location of the jump instruction in the chunk
+    fn emit_jump(&mut self, jump_opcode: OpCode) -> usize {
+        let offset = self.chunk.chunk.len();
+        self.emit_byte(jump_opcode, self.current_line);
+        offset
+    }
+
+    fn patch_jump(&mut self, jump_pos: usize) {
+        let jump_offset = self.chunk.chunk.len() - jump_pos - 1;
+
+        match &mut self.chunk.chunk[jump_pos] {
+            OpCode::Jump(offset) | OpCode::JumpIfFalse(offset) => {
+                *offset = jump_offset;
+            }
+            _ => panic!("Tried to patch a non-jump opcode"),
+        }
+    }
 
     /// Returns the index of the local variable with the given name, if exists.
     /// Otherwise returns None

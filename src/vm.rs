@@ -186,7 +186,7 @@ impl Vm {
                     self.instruction_pointer += offset;
                 }
                 OpCode::JumpIfFalse(offset) => {
-                    let condition = self.stack.pop().unwrap();
+                    let condition = self.peek(0).unwrap();
                     if Self::is_falsey(&condition) {
                         self.instruction_pointer += offset;
                     }

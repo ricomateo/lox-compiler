@@ -27,6 +27,22 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn if_statement(
+        condition: Expr,
+        then_branch: Box<Declaration>,
+        else_branch: Option<Box<Declaration>>,
+        line: usize,
+    ) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::IfStatement {
+                condition,
+                then_branch,
+                else_branch,
+            }),
+            line,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

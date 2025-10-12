@@ -95,9 +95,29 @@ impl Parser {
             return self.print_statement();
         } else if self.matches(TokenType::LeftBrace) {
             return self.block();
+        } else if self.matches(TokenType::If) {
+            self.if_statement()
         } else {
             return self.expression_statement();
         }
+    }
+
+    fn if_statement(&mut self) -> Result<Declaration, ParseError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch = Box::new(self.statement()?);
+
+        let else_branch = if self.matches(TokenType::Else) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        let line = self.previous_token_line();
+        let declaration = Declaration::if_statement(condition, then_branch, else_branch, line);
+        Ok(declaration)
     }
 
     fn block(&mut self) -> Result<Declaration, ParseError> {

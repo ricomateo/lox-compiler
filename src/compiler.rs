@@ -923,4 +923,79 @@ mod tests {
         let expected_error = CompilationError::UndefinedVariable("a".to_string(), line);
         assert_eq!(error, expected_error);
     }
+
+    // ---------- Tests: If else ----------
+
+    // Source code: if (true) { print 1; } else { print 2; }
+
+    // Tokens: [IF, LEFT_PAREN, TRUE, RIGHT_PAREN, LEFT_BRACE, PRINT, NUMBER(1), SEMICOLON, RIGHT_BRACE, ELSE, LEFT_BRACE, PRINT, NUMBER(2), SEMICOLON, RIGHT_BRACE]
+
+    // Declarations:
+    // Statement(IfStatement {
+    //     condition: Literal::Bool(true),
+    //     then_branch: Block([
+    //         PrintStatement(Literal::Number(1))
+    //     ]),
+    //     else_branch: Some(Block([
+    //         PrintStatement(Literal::Number(2))
+    //     ]))
+    // })
+
+    // Chunk: [TRUE,
+    //         JUMP_IF_FALSE 4,
+    //         POP,
+    //         CONSTANT 0 (1),
+    //         PRINT,
+    //         JUMP 3,
+    //         POP,
+    //         CONSTANT 1 (2),
+    //         PRINT,
+    //         RETURN]
+
+    // Explanation of jumps:
+    // - The first jump (JUMP_IF_FALSE 4) skips the then branch if the condition is false. It jumps over the POP, CONSTANT 0, PRINT instructions (3 instructions) plus the POP before the else branch (1 instruction), totaling 4.
+    // - The second jump (JUMP 3) skips the else branch after executing the then branch. It jumps over the POP, CONSTANT 1, PRINT instructions (3 instructions).
+
+    // In the example, since the condition is always true, the else branch will never be executed, but the jumps are necessary for correct control flow.
+
+    // The following are executed:
+    // 1. TRUE
+    // 2. JUMP_IF_FALSE 4 (not taken because condition is true)
+    // 3. POP
+    // 4. CONSTANT 0 (1)
+    // 5. PRINT
+    // 6. JUMP 3 (skips else branch)
+    // 7. RETURN
+
+    #[test]
+    fn test_if_else() {
+        // ---------- Arrange ----------
+        let source = "if (true) { print 1; } else { print 2; }";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::True); // Check if first opcode is True
+
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(4)); // Check if second opcode is JumpIfFalse with correct offset
+
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop); // Check if third opcode is Pop
+
+        assert!(matches!(opcode_at(&chunk, 3), OpCode::Constant(_))); // Check if fourth opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 3).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Print); // Check if fifth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Jump(3)); // Check if sixth opcode is Jump with correct offset
+
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop); // Check if seventh opcode is Pop
+
+        assert!(matches!(opcode_at(&chunk, 7), OpCode::Constant(_))); // Check if eighth opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 7).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+
+        assert_eq!(opcode_at(&chunk, 8), OpCode::Print); // Check if ninth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 9), OpCode::Return); // Check if tenth opcode is Return
+    }
 }

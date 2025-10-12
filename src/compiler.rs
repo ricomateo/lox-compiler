@@ -159,6 +159,13 @@ impl Compiler {
                     self.define_variable(constant_index);
                 }
             }
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                // TODO: Compile logical expressions
+            }
         }
         Ok(())
     }

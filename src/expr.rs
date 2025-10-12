@@ -22,6 +22,11 @@ pub enum Expr {
         name: String,
         value: Box<Expr>,
     },
+    Logical {
+        left: Box<Expr>,
+        operator: Token,
+        right: Box<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

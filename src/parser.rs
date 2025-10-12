@@ -319,6 +319,16 @@ impl Parser {
         }
     }
 
+    fn logic_and(&mut self, left: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
+        let operator = self.previous.clone().unwrap();
+        let right = self.parse_precedence(Precedence::And.next())?;
+        Ok(Expr::Logical {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        })
+    }
+
     // ---------- Helpers ----------
 
     fn advance(&mut self) {
@@ -444,6 +454,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         TokenType::LessEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
         TokenType::String => ParseRule::new(Some(Parser::string), None, Precedence::None),
         TokenType::Identifier => ParseRule::new(Some(Parser::variable), None, Precedence::None),
+        TokenType::And => ParseRule::new(None, Some(Parser::logic_and), Precedence::And),
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }

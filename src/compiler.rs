@@ -164,7 +164,20 @@ impl Compiler {
                 operator,
                 right,
             } => {
-                // TODO: Compile logical expressions
+                match operator.kind {
+                    TokenType::And => {
+                        self.compile_expr(left)?;
+
+                        // If left is false, jump to end
+                        let end_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                        self.emit_byte(OpCode::Pop, self.current_line);
+
+                        self.compile_expr(right)?;
+                        self.patch_jump(end_jump);
+                    }
+                    _ => unreachable!(),
+                }
             }
         }
         Ok(())

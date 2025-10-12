@@ -176,6 +176,22 @@ impl Compiler {
                         self.compile_expr(right)?;
                         self.patch_jump(end_jump);
                     }
+                    TokenType::Or => {
+                        self.compile_expr(left)?;
+
+                        // If left is true, jump to else
+                        let else_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                        // If left is true, jump to end
+                        let end_jump = self.emit_jump(OpCode::Jump(0));
+
+                        self.patch_jump(else_jump);
+
+                        self.emit_byte(OpCode::Pop, self.current_line);
+
+                        self.compile_expr(right)?;
+                        self.patch_jump(end_jump);
+                    }
                     _ => unreachable!(),
                 }
             }

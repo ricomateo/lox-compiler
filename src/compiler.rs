@@ -1018,4 +1018,98 @@ mod tests {
 
         assert_eq!(opcode_at(&chunk, 9), OpCode::Return); // Check if tenth opcode is Return
     }
+
+    // ---------- Tests: Logical operators ----------
+
+    // Source code: true and false;
+
+    // Tokens: [TRUE, AND, FALSE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(true),
+    //     operator: And,
+    //     right: Literal::Bool(false)
+    // }))
+
+    // Chunk:
+    // [TRUE,
+    //  JUMP_IF_FALSE 2,  // jump over POP + right expr
+    //  POP,
+    //  FALSE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation:
+    // - If left is false, JumpIfFalse skips POP and the right expression.
+
+    // The following are executed:
+    // 1. TRUE
+    // 2. JUMP_IF_FALSE 2 (not taken because condition is true)
+    // 3. POP
+    // 4. FALSE
+    // 5. POP
+    // 6. RETURN
+
+    #[test]
+    fn test_logical_and() {
+        // ---------- Arrange ----------
+        let source = "true and false;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(2));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 3), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Return);
+    }
+
+    // Source code: false and true;
+
+    // Tokens: [FALSE, AND, TRUE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(false),
+    //     operator: And,
+    //     right: Literal::Bool(TRUE)
+    // }))
+
+    // Chunk:
+    // [FALSE,
+    //  JUMP_IF_FALSE 2,  // jump over POP + right expr
+    //  POP,
+    //  TRUE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation:
+    // - If left is false, JumpIfFalse skips POP and the right expression.
+
+    // The following are executed:
+    // 1. FALSE
+    // 2. JUMP_IF_FALSE 2 (taken because condition is false, jumps over POP and TRUE)
+    // 3. POP
+    // 4. RETURN
+
+    #[test]
+    fn test_logical_and_short_circuit() {
+        // ---------- Arrange ----------
+        let source = "false and true;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(2));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 3), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Return);
+    }
 }

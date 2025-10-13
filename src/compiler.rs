@@ -1128,4 +1128,103 @@ mod tests {
         assert_eq!(opcode_at(&chunk, 4), OpCode::Pop);
         assert_eq!(opcode_at(&chunk, 5), OpCode::Return);
     }
+
+    // Source code: true or false;
+
+    // Tokens: [TRUE, OR, FALSE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(true),
+    //     operator: Or,
+    //     right: Literal::Bool(false)
+    // }))
+
+    // Chunk:
+    // [TRUE,
+    //  JUMP_IF_FALSE 1,  // if false, skip the following JUMP and evaluate right
+    //  JUMP 2,           // if true, skip POP + right
+    //  POP,
+    //  FALSE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation of jumps:
+    // - JUMP_IF_FALSE 1 jumps over the next JUMP when left is false (so we evaluate right).
+    // - JUMP 2 skips POP and the right expression when left is true.
+
+    // The following are executed:
+    // 1. TRUE
+    // 2. JUMP_IF_FALSE 1 (not taken)
+    // 3. JUMP 2 (skips POP and FALSE)
+    // 4. POP
+    // 5. RETURN
+
+    #[test]
+    fn test_logical_or() {
+        // ---------- Arrange ----------
+        let source = "true or false;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(1));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Jump(2));
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Return);
+    }
+
+    // Source code: false or true;
+
+    // Tokens: [FALSE, OR, TRUE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(false),
+    //     operator: Or,
+    //     right: Literal::Bool(true)
+    // }))
+
+    // Chunk:
+    // [FALSE,
+    //  JUMP_IF_FALSE 1,  // if false, skip the following JUMP and evaluate right
+    //  JUMP 2,           // if true, skip POP + right
+    //  POP,
+    //  TRUE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation (short-circuit):
+    // - Left is false, so JUMP_IF_FALSE is taken and skips the JUMP.
+    // - We POP the left and evaluate the right, leaving right’s value on the stack.
+
+    // Executed steps:
+    // 1. FALSE
+    // 2. JUMP_IF_FALSE 1 (taken; skips JUMP)
+    // 3. POP
+    // 4. TRUE
+    // 5. POP
+    // 6. RETURN
+
+    #[test]
+    fn test_logical_or_short_circuit() {
+        // ---------- Arrange ----------
+        let source = "false or true;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(1));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Jump(2));
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Return);
+    }
 }

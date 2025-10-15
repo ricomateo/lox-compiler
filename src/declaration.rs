@@ -43,6 +43,13 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn while_statement(condition: Expr, body: Box<Declaration>, line: usize) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::WhileStatement { condition, body }),
+            line,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -63,5 +70,9 @@ pub enum Statement {
         condition: Expr,
         then_branch: Box<Declaration>,
         else_branch: Option<Box<Declaration>>,
+    },
+    WhileStatement {
+        condition: Expr,
+        body: Box<Declaration>,
     },
 }

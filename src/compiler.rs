@@ -105,6 +105,9 @@ impl Compiler {
                 // Patch else jump
                 self.patch_jump(else_jump);
             }
+            DeclarationKind::Statement(Statement::WhileStatement { condition, body }) => {
+                // TODO: Compile while statement
+            }
         }
         Ok(())
     }

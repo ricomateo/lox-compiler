@@ -191,6 +191,9 @@ impl Vm {
                         self.instruction_pointer += offset;
                     }
                 }
+                OpCode::Loop(offset) => {
+                    self.instruction_pointer -= offset;
+                }
             }
         }
     }

@@ -38,6 +38,7 @@ pub enum OpCode {
     SetGlobal(usize),
     Jump(usize),
     JumpIfFalse(usize),
+    Loop(usize),
     Return,
 }
 
@@ -125,10 +126,11 @@ impl Chunk {
             OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
             OpCode::GetLocal(slot) => self.byte_instruction("OP_GET_LOCAL", offset, *slot),
             OpCode::SetLocal(slot) => self.byte_instruction("OP_SET_LOCAL", offset, *slot),
-            OpCode::Jump(offset_val) => self.jump_instruction("OP_JUMP", *offset_val, offset),
-            OpCode::JumpIfFalse(offset_val) => {
-                self.jump_instruction("OP_JUMP_IF_FALSE", *offset_val, offset)
+            OpCode::Jump(jump_offset) => self.jump_instruction("OP_JUMP", *jump_offset, offset),
+            OpCode::JumpIfFalse(jump_offset) => {
+                self.jump_instruction("OP_JUMP_IF_FALSE", *jump_offset, offset)
             }
+            OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset),
         }
     }
 

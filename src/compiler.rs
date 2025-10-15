@@ -106,7 +106,28 @@ impl Compiler {
                 self.patch_jump(else_jump);
             }
             DeclarationKind::Statement(Statement::WhileStatement { condition, body }) => {
-                // TODO: Compile while statement
+                // Remember the beginning of the loop
+                let loop_start = self.chunk.chunk.len();
+
+                self.compile_expr(condition)?;
+
+                // Jump out of the loop if the condition is false
+                let exit_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                // Pop the condition
+                self.emit_byte(OpCode::Pop, self.current_line);
+
+                // Compile the loop body
+                self.compile_declaration(body)?;
+
+                // Jump back to the start of the loop
+                self.emit_loop(loop_start);
+
+                // Patch the exit jump
+                self.patch_jump(exit_jump);
+
+                // Pop the condition when exiting the loop
+                self.emit_byte(OpCode::Pop, self.current_line);
             }
         }
         Ok(())
@@ -158,6 +179,7 @@ impl Compiler {
                             self.current_line,
                         ));
                     }
+
                     let constant_index = self.identifier_constant(name.clone());
                     self.define_variable(constant_index);
                 }
@@ -248,6 +270,12 @@ impl Compiler {
     }
 
     // ---------- Helpers ----------
+
+    // Emit a loop instruction to jump back to the given position (the index in the chunk where the loop starts)
+    fn emit_loop(&mut self, loop_start: usize) {
+        let offset = self.chunk.chunk.len() - loop_start + 1;
+        self.emit_byte(OpCode::Loop(offset), self.current_line);
+    }
 
     // Emit a jump instruction with a placeholder offset
     // Returns the location of the jump instruction in the chunk

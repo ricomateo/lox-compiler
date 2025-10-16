@@ -135,10 +135,6 @@ impl Compiler {
     }
 
     fn define_variable(&mut self, constant_index: usize) {
-        // Do not emit bytecode for local variables
-        if self.scope_depth > 0 {
-            return;
-        }
         self.emit_byte(OpCode::SetGlobal(constant_index), self.current_line);
     }
 

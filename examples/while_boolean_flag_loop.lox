@@ -2,7 +2,7 @@ var run = true;
 
 while (run) {
     print run;
-    run = false; // TODO: 'run' not updated (possible assignment bug)
+    run = false;
 }
 
 print run;

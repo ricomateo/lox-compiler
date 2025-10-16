@@ -556,4 +556,21 @@ mod tests {
         let expected_value = Some(&Value::Number(1.0));
         assert_eq!(vm.globals.get("foo"), expected_value);
     }
+
+    #[test]
+    fn test_reassign_global_variable_from_block() {
+        let source = "
+        var global = 0;
+        {
+            global = 1;
+        }";
+
+        let chunk = compile_source(source.to_string());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
 }

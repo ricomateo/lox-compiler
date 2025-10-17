@@ -174,6 +174,14 @@ impl Vm {
                     let new_value = self.peek(0).unwrap().clone();
                     self.globals.insert(name, new_value);
                 }
+                OpCode::GetLocal(slot) => {
+                    self.stack.push(self.stack[slot].clone());
+                }
+                OpCode::SetLocal(slot) => {
+                    // Takes the assigned value from the top of the stack
+                    // and stores it in the stack slot corresponding to the local variable
+                    self.stack[slot] = self.peek(0).unwrap().clone();
+                }
             }
         }
     }
@@ -504,7 +512,7 @@ mod tests {
     fn compile_source(source: String) -> Chunk {
         let tokens = Scanner::new(source).scan();
         let declarations = Parser::new(tokens).parse();
-        Compiler::new().compile(&declarations)
+        Compiler::new().compile(&declarations).unwrap()
     }
 
     #[test]
@@ -547,5 +555,22 @@ mod tests {
 
         let expected_value = Some(&Value::Number(1.0));
         assert_eq!(vm.globals.get("foo"), expected_value);
+    }
+
+    #[test]
+    fn test_reassign_global_variable_from_block() {
+        let source = "
+        var global = 0;
+        {
+            global = 1;
+        }";
+
+        let chunk = compile_source(source.to_string());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
     }
 }

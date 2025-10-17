@@ -50,6 +50,7 @@ pub struct Parser {
 pub enum ParseError {
     ExpectedExpression,
     ExpectedNumber,
+    ExpectedToken(TokenType, String),
 }
 
 impl Parser {
@@ -92,9 +93,23 @@ impl Parser {
     fn statement(&mut self) -> Result<Declaration, ParseError> {
         if self.matches(TokenType::Print) {
             return self.print_statement();
+        } else if self.matches(TokenType::LeftBrace) {
+            return self.block();
         } else {
             return self.expression_statement();
         }
+    }
+
+    fn block(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
+        let mut declarations = Vec::new();
+        while !self.check(TokenType::RightBrace) && !self.check(TokenType::Eof) {
+            declarations.push(self.declaration()?);
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+        let block = Declaration::block(declarations, line);
+        Ok(block)
     }
 
     fn var_declaration(&mut self) -> Result<Declaration, ParseError> {
@@ -109,7 +124,7 @@ impl Parser {
         self.consume(
             TokenType::Semicolon,
             "Expect ';' after variable declaration.",
-        );
+        )?;
         let name = token.lexeme;
         let line = self.previous_token_line();
         let declaration = Declaration::variable_declaration(name, initializer, line);
@@ -118,7 +133,7 @@ impl Parser {
 
     fn parse_variable(&mut self, error_message: &str) -> Result<Token, ParseError> {
         let token = self.current.clone().unwrap();
-        self.consume(TokenType::Identifier, error_message);
+        self.consume(TokenType::Identifier, error_message)?;
         Ok(token)
     }
 
@@ -148,7 +163,7 @@ impl Parser {
 
     fn expression_statement(&mut self) -> Result<Declaration, ParseError> {
         let expr = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expect ';' after expression.");
+        self.consume(TokenType::Semicolon, "Expect ';' after expression.")?;
         let line = self.previous_token_line();
         let declaration = Declaration::statement(Statement::ExprStatement(expr), line);
         Ok(declaration)
@@ -168,7 +183,7 @@ impl Parser {
 
     fn print_statement(&mut self) -> Result<Declaration, ParseError> {
         let expr = self.expression()?;
-        self.consume(TokenType::Semicolon, "Expect ';' after value.");
+        self.consume(TokenType::Semicolon, "Expect ';' after value.")?;
         let line = self.previous_token_line();
         let declaration = Declaration::statement(Statement::PrintStatement(expr), line);
         Ok(declaration)
@@ -269,7 +284,7 @@ impl Parser {
 
     fn grouping(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         let expr = self.expression()?;
-        self.consume(TokenType::RightParen, "Expect ')' after expression.");
+        self.consume(TokenType::RightParen, "Expect ')' after expression.")?;
         Ok(Expr::Grouping {
             expression: Box::new(expr),
         })
@@ -315,14 +330,15 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, token_type: TokenType, message: &str) {
+    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<(), ParseError> {
         if let Some(token) = &self.current {
             if token.kind == token_type {
                 self.advance();
-                return;
+                return Ok(());
             }
         }
         self.error(message);
+        Err(ParseError::ExpectedToken(token_type, message.to_string()))
     }
 
     fn previous_token_line(&mut self) -> usize {

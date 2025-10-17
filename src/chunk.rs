@@ -32,7 +32,9 @@ pub enum OpCode {
     Greater,
     Less,
     DefineGlobal(usize),
+    GetLocal(usize),
     GetGlobal(usize),
+    SetLocal(usize),
     SetGlobal(usize),
     Return,
 }
@@ -119,11 +121,18 @@ impl Chunk {
             }
             OpCode::GetGlobal(index) => self.constant_instruction("OP_GET_GLOBAL", offset, *index),
             OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
+            OpCode::GetLocal(slot) => self.byte_instruction("OP_GET_LOCAL", offset, *slot),
+            OpCode::SetLocal(slot) => self.byte_instruction("OP_SET_LOCAL", offset, *slot),
         }
     }
 
     fn simple_instruction(&self, name: &str, offset: usize) -> usize {
         println!("{name}");
+        offset + 1
+    }
+
+    fn byte_instruction(&self, name: &str, offset: usize, slot: usize) -> usize {
+        println!("{:<16} {:>4}", name, slot);
         offset + 1
     }
 

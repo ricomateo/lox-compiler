@@ -93,6 +93,8 @@ impl Parser {
     fn statement(&mut self) -> Result<Declaration, ParseError> {
         if self.matches(TokenType::Print) {
             return self.print_statement();
+        } else if self.matches(TokenType::For) {
+            return self.for_statement();
         } else if self.matches(TokenType::LeftBrace) {
             return self.block();
         } else if self.matches(TokenType::If) {
@@ -114,6 +116,55 @@ impl Parser {
         let line = self.previous_token_line();
         let declaration = Declaration::while_statement(condition, body, line);
         Ok(declaration)
+    }
+
+    fn for_statement(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+        let initializer_clause = self.parse_initializer_clause()?;
+        let condition_clause = self.parse_condition_clause()?;
+        let increment_clause = self.parse_increment_clause()?;
+
+        let body = self.statement()?;
+        let for_statement = Declaration::for_statement(
+            initializer_clause,
+            condition_clause,
+            increment_clause,
+            body,
+            line,
+        );
+        Ok(for_statement)
+    }
+
+    fn parse_initializer_clause(&mut self) -> Result<Option<Declaration>, ParseError> {
+        let initializer_clause = if self.matches(TokenType::Semicolon) {
+            None
+        } else if self.matches(TokenType::Var) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+        Ok(initializer_clause)
+    }
+
+    fn parse_condition_clause(&mut self) -> Result<Option<Expr>, ParseError> {
+        if !self.matches(TokenType::Semicolon) {
+            let condition = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
+            return Ok(Some(condition));
+        } else {
+            return Ok(None);
+        }
+    }
+
+    fn parse_increment_clause(&mut self) -> Result<Option<Expr>, ParseError> {
+        if !self.matches(TokenType::Semicolon) {
+            let increment_clause = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expect ')' after for clauses.")?;
+            return Ok(Some(increment_clause));
+        } else {
+            return Ok(None);
+        }
     }
 
     fn if_statement(&mut self) -> Result<Declaration, ParseError> {

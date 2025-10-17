@@ -50,6 +50,24 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn for_statement(
+        initializer_clause: Option<Declaration>,
+        condition_clause: Option<Expr>,
+        increment_clause: Option<Expr>,
+        body: Declaration,
+        line: usize,
+    ) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::ForStatement {
+                initializer_clause: Box::new(initializer_clause),
+                condition_clause,
+                increment_clause,
+                body: Box::new(body),
+            }),
+            line,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +91,12 @@ pub enum Statement {
     },
     WhileStatement {
         condition: Expr,
+        body: Box<Declaration>,
+    },
+    ForStatement {
+        initializer_clause: Box<Option<Declaration>>,
+        condition_clause: Option<Expr>,
+        increment_clause: Option<Expr>,
         body: Box<Declaration>,
     },
 }

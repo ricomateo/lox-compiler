@@ -129,6 +129,7 @@ impl Compiler {
                 // Pop the condition when exiting the loop
                 self.emit_byte(OpCode::Pop, self.current_line);
             }
+            _ => todo!(),
         }
         Ok(())
     }

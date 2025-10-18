@@ -158,7 +158,7 @@ impl Parser {
     }
 
     fn parse_increment_clause(&mut self) -> Result<Option<Expr>, ParseError> {
-        if !self.matches(TokenType::Semicolon) {
+        if !self.matches(TokenType::RightParen) {
             let increment_clause = self.expression()?;
             self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
             return Ok(Some(increment_clause));

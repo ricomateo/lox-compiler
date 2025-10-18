@@ -1,3 +1,5 @@
+use std::usize;
+
 use crate::{
     chunk::{Chunk, Object, OpCode, Value},
     declaration::{Declaration, DeclarationKind, Statement},
@@ -129,7 +131,47 @@ impl Compiler {
                 // Pop the condition when exiting the loop
                 self.emit_byte(OpCode::Pop, self.current_line);
             }
-            _ => todo!(),
+            DeclarationKind::Statement(Statement::ForStatement {
+                initializer_clause,
+                condition_clause,
+                increment_clause,
+                body,
+            }) => {
+                // Explanation: https://craftinginterpreters.com/image/jumping-back-and-forth/for.png
+                self.begin_scope();
+                if let Some(initializer_clause) = *initializer_clause.clone() {
+                    self.compile_declaration(&initializer_clause)?;
+                }
+                let mut loop_start = self.chunk.chunk.len();
+                let mut exit_jump = None;
+
+                if let Some(condition_clause) = condition_clause {
+                    self.compile_expr(condition_clause)?;
+                    exit_jump = Some(self.emit_jump(OpCode::JumpIfFalse(usize::MAX)));
+                    self.emit_byte(OpCode::Pop, self.current_line); // Pop conditon clause
+                }
+
+                if let Some(increment_clause) = increment_clause {
+                    // The increment clause must be executed at the end of each loop,
+                    // thats why here we jump right to the body
+                    let body_jump = self.emit_jump(OpCode::Jump(usize::MAX));
+                    let increment_start = self.chunk.chunk.len();
+                    self.compile_expr(increment_clause)?;
+                    self.emit_byte(OpCode::Pop, self.current_line);
+                    self.emit_loop(loop_start);
+                    loop_start = increment_start;
+                    self.patch_jump(body_jump);
+                }
+
+                self.compile_declaration(body)?;
+                self.emit_loop(loop_start);
+
+                if let Some(exit_jump) = exit_jump {
+                    self.patch_jump(exit_jump);
+                    self.emit_byte(OpCode::Pop, self.current_line);
+                }
+                self.end_scope();
+            }
         }
         Ok(())
     }

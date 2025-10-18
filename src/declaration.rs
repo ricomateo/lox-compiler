@@ -1,6 +1,6 @@
 use crate::expr::Expr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub inner: DeclarationKind,
     pub line: usize,
@@ -70,7 +70,7 @@ impl Declaration {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DeclarationKind {
     VariableDeclaration {
         name: String,
@@ -80,7 +80,7 @@ pub enum DeclarationKind {
     Block(Vec<Declaration>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     ExprStatement(Expr),
     PrintStatement(Expr),

@@ -568,4 +568,41 @@ mod tests {
         let expected_value = Some(&Value::Number(1.0));
         assert_eq!(vm.globals.get("foo"), expected_value);
     }
+
+    #[test]
+    fn test_for_loop_increment_variable() {
+        // Increment a global variable from a for loop
+        // and check its value
+        let source = "
+            var global = 0;
+            for (var i = 0; i < 5; i = i + 1) {
+                global = global + 1;
+            }
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(5.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_for_loop_decrementing_variable() {
+        // Perform the same test but with different condition clause and increment clause
+        let source = "
+            var global = 5;
+            for (var i = 5; i > 0; i = i - 1) {
+                global = global - 1;
+            }
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(0.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
 }

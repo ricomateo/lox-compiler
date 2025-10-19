@@ -1344,4 +1344,18 @@ mod tests {
             ]
         );
     }
+
+    #[test]
+    fn test_cannot_access_for_loop_variable_from_outside() {
+        let source = "
+        for (var i = 0; i < 5; i = i + 1) {
+            print i;
+        }
+        print i; // Should fail
+        ";
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 5;
+        let expected_error = CompilationError::UndefinedVariable("i".to_string(), line);
+        assert_eq!(error, expected_error);
+    }
 }

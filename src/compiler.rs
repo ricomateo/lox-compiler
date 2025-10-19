@@ -1297,4 +1297,51 @@ mod tests {
         assert_eq!(opcode_at(&chunk, 5), OpCode::Pop);
         assert_eq!(opcode_at(&chunk, 6), OpCode::Return);
     }
+
+    #[test]
+    fn test_empty_for_loop() {
+        let source = "for (;;) {}";
+        let chunk = compile_source(source.to_string()).unwrap();
+        assert_eq!(chunk.chunk, vec![OpCode::Loop(1), OpCode::Return]);
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let source = "
+        for (var i = 0; i < 5; i = i + 1) {
+            print i;
+        }
+        ";
+        let chunk = compile_source(source.to_string()).unwrap();
+        assert_eq!(
+            chunk.chunk,
+            vec![
+                OpCode::Constant(0), // initializer clause
+                //
+                OpCode::GetLocal(0), // i  \
+                OpCode::Constant(1), // 5  | condition clause i < 5
+                OpCode::Less,        // <  /
+                //
+                OpCode::JumpIfFalse(11), // Jump out of the loop
+                OpCode::Pop,             // Pop condition clause
+                OpCode::Jump(6),         // Jump to the body
+                //
+                OpCode::GetLocal(0), //  \
+                OpCode::Constant(2), //  | increment clause
+                OpCode::Add,         //  | i = i + 1
+                OpCode::SetLocal(0), //  /
+                //
+                OpCode::Pop,      //
+                OpCode::Loop(12), // jump back to the loop start
+                //
+                OpCode::GetLocal(0), // body
+                OpCode::Print,       // print i;
+                //
+                OpCode::Loop(9), // jump to the increment clause
+                OpCode::Pop,
+                OpCode::Pop,
+                OpCode::Return
+            ]
+        );
+    }
 }

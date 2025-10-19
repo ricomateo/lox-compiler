@@ -1313,6 +1313,11 @@ mod tests {
         }
         ";
         let chunk = compile_source(source.to_string()).unwrap();
+
+        assert_eq!(
+            chunk.constants,
+            vec![Value::Number(0.0), Value::Number(5.0), Value::Number(1.0)]
+        );
         assert_eq!(
             chunk.chunk,
             vec![

@@ -1298,6 +1298,194 @@ mod tests {
         assert_eq!(opcode_at(&chunk, 6), OpCode::Return);
     }
 
+    // ---------- Tests: While loops ----------
+
+    // Source code: while (false) { print 1; }
+
+    // Tokens: [WHILE, LEFT_PAREN, FALSE, RIGHT_PAREN, LEFT_BRACE, PRINT, NUMBER(1), SEMICOLON, RIGHT_BRACE]
+
+    // Declarations:
+    // Statement(WhileStatement {
+    //     condition: Literal::Bool(false),
+    //     body: Block([
+    //         PrintStatement(Literal::Number(1))
+    //     ])
+    // })
+
+    // Chunk:
+    // [FALSE,             // evaluate condition
+    //  JUMP_IF_FALSE 4,   // if false, jump to the final POP: (1+1) + 4 = 6
+    //  POP,               // pop condition before body
+    //  CONSTANT 0 (1),    // body
+    //  PRINT,             // body
+    //  LOOP 6,            // jump back to the start of the loop: (5+1) - 6 = 0
+    //  POP,               // pop condition when exiting the loop
+    //  RETURN]
+
+    // Explanation of jumps:
+    // - JUMP_IF_FALSE 4: from index 2, jumps to 2 + 4 = 6, which is the final POP (exits loop without executing body).
+    // - LOOP 6: from index 6, jumps back to 6 - 6 = 0 (the FALSE at index 0).
+
+    // Executed steps:
+    // 1. FALSE
+    // 2. JUMP_IF_FALSE 4 (taken; skips POP, CONSTANT 0 (1), PRINT, LOOP 6)
+    // 3. POP (final POP at index 6)
+    // 4. RETURN
+
+    #[test]
+    fn test_while_false_body_not_executed() {
+        // ---------- Arrange ----------
+        let source = "while (false) { print 1; }";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(4));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop);
+
+        assert!(matches!(opcode_at(&chunk, 3), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 3).unwrap(), Value::Number(1.0));
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Print);
+
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Loop(6));
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 7), OpCode::Return);
+    }
+
+    // Source code: var count = 0; while (count < 3) { print count; count = count + 1; } print "Done";
+
+    // Tokens:
+    // [VAR, IDENTIFIER(count), EQUAL, NUMBER(0), SEMICOLON,
+    //  WHILE, LEFT_PAREN, IDENTIFIER(count), LESS, NUMBER(3), RIGHT_PAREN,
+    //  LEFT_BRACE,
+    //    PRINT, IDENTIFIER(count), SEMICOLON,
+    //    IDENTIFIER(count), EQUAL, IDENTIFIER(count), PLUS, NUMBER(1), SEMICOLON,
+    //  RIGHT_BRACE,
+    //  PRINT, STRING("Done"), SEMICOLON]
+
+    // Declarations:
+    // Statement(VariableDeclaration {
+    //     name: "count",
+    //     initializer: Some(Literal::Number(0))
+    // }),
+    // Statement(WhileStatement {
+    //     condition: Binary {
+    //         left: Variable("count"),
+    //         operator: Less,
+    //         right: Literal::Number(3)
+    //     },
+    //     body: Block([
+    //         PrintStatement(Variable("count")),
+    //         ExprStatement(VariableAssignment {
+    //             name: "count",
+    //             value: Binary {
+    //                 left: Variable("count"),
+    //                 operator: Add,
+    //                 right: Literal::Number(1)
+    //             }
+    //         })
+    //     ])
+    // }),
+    // Statement(PrintStatement(Literal::String("Done")))
+
+    // Chunk:
+    // [CONSTANT 0 (0),
+    //  DEFINE_GLOBAL "count",
+    //  GET_GLOBAL "count",           // while (count < 3)
+    //  CONSTANT 1 (3),
+    //  LESS,
+    //  JUMP_IF_FALSE 9,              // jump to the final POP of the while: (5+1) + 9 = 15
+    //  POP,                          // discard the condition before the body
+    //  GET_GLOBAL "count",
+    //  PRINT,
+    //  GET_GLOBAL "count",
+    //  CONSTANT 2 (1),
+    //  ADD,
+    //  SET_GLOBAL "count",
+    //  POP,                          // discard assignment value
+    //  LOOP 13,                      // jump back to re-evaluate the condition: (14+1) - 13 = 2
+    //  POP,                          // final POP when exiting the while (condition)
+    //  CONSTANT 3 ("Done"),
+    //  PRINT,
+    //  RETURN]
+
+    // Explanation of jumps:
+    // - JUMP_IF_FALSE 9 (at index 5): from ip=6 jumps to 15 (the final POP of the while, skipping POP + body + LOOP).
+    // - LOOP 13 (at index 14): from ip=15 jumps back to 2 (start of the condition).
+
+    // Executed steps:
+    // 1. CONSTANT 0 (0)
+    // 2. DEFINE_GLOBAL "count"
+    // 3. GET_GLOBAL "count"
+    // 4. CONSTANT 1 (3)
+    // 5. LESS
+    // 6. JUMP_IF_FALSE 9 (not taken while count < 3)
+    // 7. POP
+    // 8. GET_GLOBAL "count"
+    // 9. PRINT
+    // 10. GET_GLOBAL "count"
+    // 11. CONSTANT 2 (1)
+    // 12. ADD
+    // 13. SET_GLOBAL "count"
+    // 14. POP
+    // 15. LOOP 13 (jumps back to 2, repeat steps 3-15 until count >= 3)
+    // 16. POP (final POP when exiting the while)
+    // 17. CONSTANT 3 ("Done")
+    // 18. PRINT
+    // 19. RETURN
+
+    #[test]
+    fn test_while_counter_loop() {
+        // ---------- Arrange ----------
+        let source =
+            r#"var count = 0; while (count < 3) { print count; count = count + 1; } print "Done";"#;
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        // var count = 0;
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(0.0));
+        assert!(matches!(opcode_at(&chunk, 1), OpCode::DefineGlobal(_)));
+
+        // while (count < 3)
+        assert!(matches!(opcode_at(&chunk, 2), OpCode::GetGlobal(_)));
+        assert!(matches!(opcode_at(&chunk, 3), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 3).unwrap(), Value::Number(3.0));
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Less);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::JumpIfFalse(9));
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop);
+
+        // body: print count;
+        assert!(matches!(opcode_at(&chunk, 7), OpCode::GetGlobal(_)));
+        assert_eq!(opcode_at(&chunk, 8), OpCode::Print);
+
+        // body: count = count + 1;
+        assert!(matches!(opcode_at(&chunk, 9), OpCode::GetGlobal(_)));
+        assert!(matches!(opcode_at(&chunk, 10), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 10).unwrap(), Value::Number(1.0));
+        assert_eq!(opcode_at(&chunk, 11), OpCode::Add);
+        assert!(matches!(opcode_at(&chunk, 12), OpCode::SetGlobal(_)));
+        assert_eq!(opcode_at(&chunk, 13), OpCode::Pop);
+
+        // loop back and while exit
+        assert_eq!(opcode_at(&chunk, 14), OpCode::Loop(13)); // back to index 2
+        assert_eq!(opcode_at(&chunk, 15), OpCode::Pop); // final POP (condition)
+
+        // print "Done";
+        assert!(matches!(opcode_at(&chunk, 16), OpCode::Constant(_)));
+        assert_eq!(opcode_at(&chunk, 17), OpCode::Print);
+
+        // end of program
+        assert_eq!(opcode_at(&chunk, 18), OpCode::Return);
+    }
+
+    // ---------- Tests: For loops ----------
+
     #[test]
     fn test_empty_for_loop() {
         let source = "for (;;) {}";

@@ -5,4 +5,5 @@ pub mod expr;
 pub mod parser;
 pub mod rlox;
 pub mod scanner;
+pub mod value;
 pub mod vm;

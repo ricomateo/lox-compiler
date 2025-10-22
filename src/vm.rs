@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::chunk::{Chunk, OpCode, Value};
+use crate::{
+    chunk::{Chunk, OpCode},
+    value::Value,
+};
 
 #[derive(Debug)]
 pub struct Vm {
@@ -330,7 +333,7 @@ pub enum VmError {
 mod tests {
     use super::*;
     use crate::{
-        chunk::{Chunk, OpCode, Value},
+        chunk::{Chunk, OpCode},
         compiler::Compiler,
         parser::Parser,
         scanner::Scanner,

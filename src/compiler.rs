@@ -1,9 +1,10 @@
 use std::usize;
 
 use crate::{
-    chunk::{Chunk, OpCode, Value},
+    chunk::{Chunk, OpCode},
     declaration::{Declaration, DeclarationKind, Statement},
     expr::Expr,
+    value::Value,
 };
 
 use crate::expr::Literal;
@@ -472,7 +473,7 @@ pub enum CompilationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::{Chunk, OpCode, Value};
+    use crate::chunk::{Chunk, OpCode};
     use crate::parser::Parser;
     use crate::scanner::Scanner;
 

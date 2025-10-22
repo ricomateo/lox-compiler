@@ -2,37 +2,50 @@ use std::collections::HashMap;
 
 use crate::{
     chunk::{Chunk, OpCode},
-    value::Value,
+    value::{Function, Value},
 };
 
 #[derive(Debug)]
 pub struct Vm {
-    chunk: Chunk,
-    instruction_pointer: usize,
     stack: Vec<Value>,
+    frames: Vec<CallFrame>,
     pub globals: HashMap<String, Value>,
 }
 
+#[derive(Debug)]
+pub struct CallFrame {
+    pub function: Function,
+    instruction_pointer: usize,
+    // Points to the VM's value stack at the first slot this function can use
+    // TODO: consider using a reference to the stack (like &vm.stack[slot_index..])
+    slot_index: usize,
+}
+
 impl Vm {
-    pub fn new(chunk: Chunk) -> Self {
+    pub fn new() -> Self {
         Self {
-            chunk,
-            instruction_pointer: 0,
             stack: Vec::new(),
+            frames: Vec::new(),
             globals: HashMap::new(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
+        let frame_count = self.frames.len();
+        let frame = self.frames.get_mut(frame_count - 1).unwrap();
         loop {
             if std::env::var("DEBUG_TRACE").is_ok() {
                 self.debug_trace();
             };
-            let instruction = self.chunk.instruction_at(self.instruction_pointer);
-            self.instruction_pointer += 1;
+            let instruction = frame
+                .function
+                .chunk
+                .instruction_at(frame.instruction_pointer);
+
+            frame.instruction_pointer += 1;
             match instruction {
                 OpCode::Constant(constant_index) => {
-                    let constant = self.chunk.constant_at(constant_index);
+                    let constant = frame.function.chunk.constant_at(constant_index);
                     self.stack.push(constant);
                 }
                 OpCode::Negate => {
@@ -186,23 +199,27 @@ impl Vm {
                     self.stack[slot] = self.peek(0).unwrap().clone();
                 }
                 OpCode::Jump(offset) => {
-                    self.instruction_pointer += offset;
+                    frame.instruction_pointer += offset;
                 }
                 OpCode::JumpIfFalse(offset) => {
                     let condition = self.peek(0).unwrap();
                     if Self::is_falsey(&condition) {
-                        self.instruction_pointer += offset;
+                        frame.instruction_pointer += offset;
                     }
                 }
                 OpCode::Loop(offset) => {
-                    self.instruction_pointer -= offset;
+                    frame.instruction_pointer -= offset;
                 }
             }
         }
     }
 
+    fn current_chunk(&mut self) -> Chunk {
+        self.frames.last().unwrap().function.chunk.clone()
+    }
+
     fn get_variable_name(&mut self, constant_index: usize) -> Result<String, VmError> {
-        let constant = self.chunk.constant_at(constant_index as usize);
+        let constant = self.current_chunk().constant_at(constant_index as usize);
         let Value::String(string) = constant else {
             // TODO: refactor this
             eprintln!("Variable name must be a string.");
@@ -217,6 +234,13 @@ impl Vm {
             Value::Bool(bool) => println!("{bool}"),
             Value::Nil => println!("nil"),
             Value::String(string) => println!("{string}"),
+            Value::Function(function) => {
+                if &function.name == "" {
+                    println!("<script>");
+                    return;
+                }
+                println!("<fn {}>", function.name);
+            }
         }
     }
 

@@ -31,7 +31,7 @@ pub enum OpCode {
     Return,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Chunk {
     pub chunk: Vec<OpCode>,
     pub constants: Vec<Value>,

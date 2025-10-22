@@ -1,10 +1,10 @@
 use std::usize;
 
 use crate::{
-    chunk::{Chunk, OpCode},
+    chunk::OpCode,
     declaration::{Declaration, DeclarationKind, Statement},
     expr::Expr,
-    value::Value,
+    value::{Function, Value},
 };
 
 use crate::expr::Literal;
@@ -12,7 +12,8 @@ use crate::scanner::Token;
 use crate::scanner::TokenType;
 
 pub struct Compiler {
-    chunk: Chunk,
+    function: Function,
+    function_type: FunctionType,
     current_line: usize,
     locals: Vec<Local>,
     scope_depth: usize,
@@ -20,28 +21,42 @@ pub struct Compiler {
     constant_identifiers: Vec<String>,
 }
 
+#[derive(Default)]
 pub struct Local {
-    name: String,
+    pub name: String,
     pub depth: usize,
+}
+
+pub enum FunctionType {
+    /// Function body code
+    Function,
+    /// Top-level code
+    Script,
 }
 
 impl Compiler {
     pub fn new() -> Self {
+        // Claims the first stack slot for the VM’s internal use
+        let local = Local::default();
         Self {
-            chunk: Chunk::new(),
+            function: Function::default(),
+            function_type: FunctionType::Script,
             current_line: 0,
-            locals: Vec::new(),
+            locals: vec![local],
             scope_depth: 0,
             constant_identifiers: Vec::new(),
         }
     }
 
-    pub fn compile(&mut self, declarations: &Vec<Declaration>) -> Result<Chunk, CompilationError> {
+    pub fn compile(
+        &mut self,
+        declarations: &Vec<Declaration>,
+    ) -> Result<Function, CompilationError> {
         for declaration in declarations {
             self.compile_declaration(declaration)?;
         }
         self.end_compiler();
-        Ok(self.chunk.clone())
+        Ok(self.function.clone())
     }
 
     fn compile_declaration(&mut self, declaration: &Declaration) -> Result<(), CompilationError> {

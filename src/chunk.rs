@@ -126,11 +126,12 @@ impl Chunk {
             OpCode::SetGlobal(index) => self.constant_instruction("OP_SET_GLOBAL", offset, *index),
             OpCode::GetLocal(slot) => self.byte_instruction("OP_GET_LOCAL", offset, *slot),
             OpCode::SetLocal(slot) => self.byte_instruction("OP_SET_LOCAL", offset, *slot),
-            OpCode::Jump(jump_offset) => self.jump_instruction("OP_JUMP", *jump_offset, offset),
+            OpCode::Jump(jump_offset) => self.jump_instruction("OP_JUMP", *jump_offset, offset, 1),
             OpCode::JumpIfFalse(jump_offset) => {
-                self.jump_instruction("OP_JUMP_IF_FALSE", *jump_offset, offset)
+                self.jump_instruction("OP_JUMP_IF_FALSE", *jump_offset, offset, 1)
             }
-            OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset),
+            // TODO: Check jump instruction implementation
+            OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset, -1),
         }
     }
 
@@ -161,8 +162,11 @@ impl Chunk {
         offset + 1
     }
 
-    fn jump_instruction(&self, name: &str, jump_offset: usize, offset: usize) -> usize {
-        println!("{:<16} {:>4} -> {}", name, offset, offset + 1 + jump_offset);
+    fn jump_instruction(&self, name: &str, jump_offset: usize, offset: usize, sign: i32) -> usize {
+        let from = offset as isize + 1;
+        let dist = jump_offset as isize;
+        let target = if sign >= 0 { from + dist } else { from - dist };
+        println!("{:<16} {:>4} -> {}", name, offset, target);
         offset + 1
     }
 }

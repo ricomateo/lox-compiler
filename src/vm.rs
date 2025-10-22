@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::chunk::{Chunk, Object, OpCode, Value};
+use crate::chunk::{Chunk, OpCode, Value};
 
 #[derive(Debug)]
 pub struct Vm {
@@ -200,7 +200,7 @@ impl Vm {
 
     fn get_variable_name(&mut self, constant_index: usize) -> Result<String, VmError> {
         let constant = self.chunk.constant_at(constant_index as usize);
-        let Value::Object(Object::String(string)) = constant else {
+        let Value::String(string) = constant else {
             // TODO: refactor this
             eprintln!("Variable name must be a string.");
             return Err(VmError::RuntimeError);
@@ -213,7 +213,7 @@ impl Vm {
             Value::Number(number) => println!("{number}"),
             Value::Bool(bool) => println!("{bool}"),
             Value::Nil => println!("nil"),
-            Value::Object(Object::String(string)) => println!("{string}"),
+            Value::String(string) => println!("{string}"),
         }
     }
 
@@ -273,7 +273,7 @@ impl Vm {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
-            (Value::Object(Object::String(a)), Value::Object(Object::String(b))) => *a == *b,
+            (Value::String(a), Value::String(b)) => *a == *b,
             _ => false,
         }
     }
@@ -289,17 +289,16 @@ impl Vm {
     fn stack_operands_are_strings(&mut self) -> bool {
         let b = self.peek(0);
         let a = self.peek(1);
-        matches!(a, Some(Value::Object(Object::String(_))))
-            && matches!(b, Some(Value::Object(Object::String(_))))
+        matches!(a, Some(Value::String(_))) && matches!(b, Some(Value::String(_)))
     }
 
     fn concatenate_strings(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop().unwrap();
         let a = self.stack.pop().unwrap();
-        let (Value::Object(Object::String(a)), Value::Object(Object::String(b))) = (a, b) else {
+        let (Value::String(a), Value::String(b)) = (a, b) else {
             return self.runtime_error("Operands must be strings.");
         };
-        let concatenated_string = Value::Object(Object::String(format!("{a}{b}")));
+        let concatenated_string = Value::String(format!("{a}{b}"));
         self.stack.push(concatenated_string);
         Ok(())
     }
@@ -313,7 +312,7 @@ impl Vm {
                 Value::Number(v) => print!("[ {v} ]"),
                 Value::Bool(v) => print!("[ {v} ]"),
                 Value::Nil => print!("[ nil ]"),
-                Value::Object(Object::String(string)) => print!("[ \"{string}\" ]"),
+                Value::String(string) => print!("[ \"{string}\" ]"),
             }
         }
         println!("");
@@ -419,13 +418,13 @@ mod tests {
     #[test]
     fn test_string_concatenation() {
         // Test "hello" + "world" equals "helloworld"
-        let a = Value::Object(Object::String("hello".into()));
-        let b = Value::Object(Object::String("world".into()));
+        let a = Value::String("hello".into());
+        let b = Value::String("world".into());
         let operator = OpCode::Add;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
 
         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-        let expected_value = Value::Object(Object::String("helloworld".into()));
+        let expected_value = Value::String("helloworld".into());
         assert_eq!(stack_top, expected_value);
     }
 
@@ -501,8 +500,8 @@ mod tests {
     #[test]
     fn test_strings_equal() {
         // Test "hello" equals "hello" returns true
-        let a = Value::Object(Object::String("hello".into()));
-        let b = Value::Object(Object::String("hello".into()));
+        let a = Value::String("hello".into());
+        let b = Value::String("hello".into());
         let operator = OpCode::Equal;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
 
@@ -511,8 +510,8 @@ mod tests {
         assert_eq!(stack_top, expected_value);
 
         // Test "hello" equals "world" returns false
-        let a = Value::Object(Object::String("hello".into()));
-        let b = Value::Object(Object::String("world".into()));
+        let a = Value::String("hello".into());
+        let b = Value::String("world".into());
         let operator = OpCode::Equal;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
 

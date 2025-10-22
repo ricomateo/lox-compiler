@@ -1,7 +1,7 @@
 use std::usize;
 
 use crate::{
-    chunk::{Chunk, Object, OpCode, Value},
+    chunk::{Chunk, OpCode, Value},
     declaration::{Declaration, DeclarationKind, Statement},
     expr::Expr,
 };
@@ -383,7 +383,7 @@ impl Compiler {
         // Here we add the identifier in the constant_identifiers vec
         // This is then used to check whether the global variable exists
         self.constant_identifiers.push(name.clone());
-        self.make_constant(Value::Object(Object::String(name)))
+        self.make_constant(Value::String(name))
     }
 
     fn compile_binary(
@@ -455,7 +455,7 @@ impl Compiler {
             }
             Literal::String(string) => {
                 // TODO: set the right line here
-                self.emit_constant(Value::Object(Object::String(string.clone())), line);
+                self.emit_constant(Value::String(string.clone()), line);
             }
         }
     }
@@ -715,10 +715,7 @@ mod tests {
 
         // DEFINE_GLOBAL (with constant "a")
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
@@ -746,10 +743,7 @@ mod tests {
         assert_eq!(opcode_at(&chunk, 0), OpCode::Nil); // Check if first opcode is Nil
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
@@ -778,19 +772,13 @@ mod tests {
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
 
         if let OpCode::GetGlobal(idx) = opcode_at(&chunk, 2) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected GetGlobal opcode");
         }
@@ -822,20 +810,14 @@ mod tests {
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         }
 
         assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
         assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
         if let OpCode::SetGlobal(idx) = opcode_at(&chunk, 3) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         }
 
         assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop

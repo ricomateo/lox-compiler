@@ -3,11 +3,6 @@ pub enum Value {
     Number(f64),
     Bool(bool),
     Nil,
-    Object(Object),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Object {
     String(String),
 }
 
@@ -151,7 +146,7 @@ impl Chunk {
             Value::Number(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
             Value::Bool(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
             Value::Nil => println!("{:<16} {:>4} 'nil'", name, constant_index),
-            Value::Object(Object::String(v)) => {
+            Value::String(v) => {
                 println!("{:<16} {:>4} '{}'", name, constant_index, v)
             }
         }

@@ -1,0 +1,13 @@
+var x = 10;
+if (x > 5) {
+    print "Greater";
+} else {
+    print "Smaller or equal";
+}
+
+var y = 3;
+if (y > 5) {
+    print "Greater";
+} else {
+    print "Smaller or equal";
+}

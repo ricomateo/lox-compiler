@@ -1,3 +1,5 @@
+use std::usize;
+
 use crate::{
     chunk::{Chunk, Object, OpCode, Value},
     declaration::{Declaration, DeclarationKind, Statement},
@@ -72,6 +74,104 @@ impl Compiler {
                 }
                 self.end_scope();
             }
+            DeclarationKind::Statement(Statement::IfStatement {
+                condition,
+                then_branch,
+                else_branch,
+            }) => {
+                self.compile_expr(condition)?;
+
+                // Emit jumpp if false (placeholder)
+                let then_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                // Pop the condition
+                self.emit_byte(OpCode::Pop, self.current_line);
+
+                // Compile then branch
+                self.compile_declaration(then_branch)?;
+
+                // Emit jump over else
+                let else_jump = self.emit_jump(OpCode::Jump(0));
+
+                // Patch the jump to else branch
+                self.patch_jump(then_jump);
+
+                // Pop the condition again if else exists
+                self.emit_byte(OpCode::Pop, self.current_line);
+
+                // Compile else branch if it exists
+                if let Some(else_branch) = else_branch {
+                    self.compile_declaration(else_branch)?;
+                }
+
+                // Patch else jump
+                self.patch_jump(else_jump);
+            }
+            DeclarationKind::Statement(Statement::WhileStatement { condition, body }) => {
+                // Remember the beginning of the loop
+                let loop_start = self.chunk.chunk.len();
+
+                self.compile_expr(condition)?;
+
+                // Jump out of the loop if the condition is false
+                let exit_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                // Pop the condition
+                self.emit_byte(OpCode::Pop, self.current_line);
+
+                // Compile the loop body
+                self.compile_declaration(body)?;
+
+                // Jump back to the start of the loop
+                self.emit_loop(loop_start);
+
+                // Patch the exit jump
+                self.patch_jump(exit_jump);
+
+                // Pop the condition when exiting the loop
+                self.emit_byte(OpCode::Pop, self.current_line);
+            }
+            DeclarationKind::Statement(Statement::ForStatement {
+                initializer_clause,
+                condition_clause,
+                increment_clause,
+                body,
+            }) => {
+                // Explanation: https://craftinginterpreters.com/image/jumping-back-and-forth/for.png
+                self.begin_scope();
+                if let Some(initializer_clause) = *initializer_clause.clone() {
+                    self.compile_declaration(&initializer_clause)?;
+                }
+                let mut loop_start = self.chunk.chunk.len();
+                let mut exit_jump = None;
+
+                if let Some(condition_clause) = condition_clause {
+                    self.compile_expr(condition_clause)?;
+                    exit_jump = Some(self.emit_jump(OpCode::JumpIfFalse(usize::MAX)));
+                    self.emit_byte(OpCode::Pop, self.current_line); // Pop conditon clause
+                }
+
+                if let Some(increment_clause) = increment_clause {
+                    // The increment clause must be executed at the end of each loop,
+                    // thats why here we jump right to the body
+                    let body_jump = self.emit_jump(OpCode::Jump(usize::MAX));
+                    let increment_start = self.chunk.chunk.len();
+                    self.compile_expr(increment_clause)?;
+                    self.emit_byte(OpCode::Pop, self.current_line);
+                    self.emit_loop(loop_start);
+                    loop_start = increment_start;
+                    self.patch_jump(body_jump);
+                }
+
+                self.compile_declaration(body)?;
+                self.emit_loop(loop_start);
+
+                if let Some(exit_jump) = exit_jump {
+                    self.patch_jump(exit_jump);
+                    self.emit_byte(OpCode::Pop, self.current_line);
+                }
+                self.end_scope();
+            }
         }
         Ok(())
     }
@@ -122,8 +222,45 @@ impl Compiler {
                             self.current_line,
                         ));
                     }
+
                     let constant_index = self.identifier_constant(name.clone());
                     self.define_variable(constant_index);
+                }
+            }
+            Expr::Logical {
+                left,
+                operator,
+                right,
+            } => {
+                match operator.kind {
+                    TokenType::And => {
+                        self.compile_expr(left)?;
+
+                        // If left is false, jump to end
+                        let end_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                        self.emit_byte(OpCode::Pop, self.current_line);
+
+                        self.compile_expr(right)?;
+                        self.patch_jump(end_jump);
+                    }
+                    TokenType::Or => {
+                        self.compile_expr(left)?;
+
+                        // If left is true, jump to else
+                        let else_jump = self.emit_jump(OpCode::JumpIfFalse(0));
+
+                        // If left is true, jump to end
+                        let end_jump = self.emit_jump(OpCode::Jump(0));
+
+                        self.patch_jump(else_jump);
+
+                        self.emit_byte(OpCode::Pop, self.current_line);
+
+                        self.compile_expr(right)?;
+                        self.patch_jump(end_jump);
+                    }
+                    _ => unreachable!(),
                 }
             }
         }
@@ -172,6 +309,31 @@ impl Compiler {
     }
 
     // ---------- Helpers ----------
+
+    // Emit a loop instruction to jump back to the given position (the index in the chunk where the loop starts)
+    fn emit_loop(&mut self, loop_start: usize) {
+        let offset = self.chunk.chunk.len() - loop_start + 1;
+        self.emit_byte(OpCode::Loop(offset), self.current_line);
+    }
+
+    // Emit a jump instruction with a placeholder offset
+    // Returns the location of the jump instruction in the chunk
+    fn emit_jump(&mut self, jump_opcode: OpCode) -> usize {
+        let offset = self.chunk.chunk.len();
+        self.emit_byte(jump_opcode, self.current_line);
+        offset
+    }
+
+    fn patch_jump(&mut self, jump_pos: usize) {
+        let jump_offset = self.chunk.chunk.len() - jump_pos - 1;
+
+        match &mut self.chunk.chunk[jump_pos] {
+            OpCode::Jump(offset) | OpCode::JumpIfFalse(offset) => {
+                *offset = jump_offset;
+            }
+            _ => panic!("Tried to patch a non-jump opcode"),
+        }
+    }
 
     /// Returns the index of the local variable with the given name, if exists.
     /// Otherwise returns None
@@ -865,6 +1027,528 @@ mod tests {
         let error = compile_source(source.to_string()).expect_err("Expected compilation error");
         let line = 4;
         let expected_error = CompilationError::UndefinedVariable("a".to_string(), line);
+        assert_eq!(error, expected_error);
+    }
+
+    // ---------- Tests: If else ----------
+
+    // Source code: if (true) { print 1; } else { print 2; }
+
+    // Tokens: [IF, LEFT_PAREN, TRUE, RIGHT_PAREN, LEFT_BRACE, PRINT, NUMBER(1), SEMICOLON, RIGHT_BRACE, ELSE, LEFT_BRACE, PRINT, NUMBER(2), SEMICOLON, RIGHT_BRACE]
+
+    // Declarations:
+    // Statement(IfStatement {
+    //     condition: Literal::Bool(true),
+    //     then_branch: Block([
+    //         PrintStatement(Literal::Number(1))
+    //     ]),
+    //     else_branch: Some(Block([
+    //         PrintStatement(Literal::Number(2))
+    //     ]))
+    // })
+
+    // Chunk: [TRUE,
+    //         JUMP_IF_FALSE 4,
+    //         POP,
+    //         CONSTANT 0 (1),
+    //         PRINT,
+    //         JUMP 3,
+    //         POP,
+    //         CONSTANT 1 (2),
+    //         PRINT,
+    //         RETURN]
+
+    // Explanation of jumps:
+    // - The first jump (JUMP_IF_FALSE 4) skips the then branch if the condition is false. It jumps over the POP, CONSTANT 0, PRINT instructions (3 instructions) plus the POP before the else branch (1 instruction), totaling 4.
+    // - The second jump (JUMP 3) skips the else branch after executing the then branch. It jumps over the POP, CONSTANT 1, PRINT instructions (3 instructions).
+
+    // In the example, since the condition is always true, the else branch will never be executed, but the jumps are necessary for correct control flow.
+
+    // The following are executed:
+    // 1. TRUE
+    // 2. JUMP_IF_FALSE 4 (not taken because condition is true)
+    // 3. POP
+    // 4. CONSTANT 0 (1)
+    // 5. PRINT
+    // 6. JUMP 3 (skips else branch)
+    // 7. RETURN
+
+    #[test]
+    fn test_if_else() {
+        // ---------- Arrange ----------
+        let source = "if (true) { print 1; } else { print 2; }";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::True); // Check if first opcode is True
+
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(4)); // Check if second opcode is JumpIfFalse with correct offset
+
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop); // Check if third opcode is Pop
+
+        assert!(matches!(opcode_at(&chunk, 3), OpCode::Constant(_))); // Check if fourth opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 3).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Print); // Check if fifth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Jump(3)); // Check if sixth opcode is Jump with correct offset
+
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop); // Check if seventh opcode is Pop
+
+        assert!(matches!(opcode_at(&chunk, 7), OpCode::Constant(_))); // Check if eighth opcode is Constant
+        assert_eq!(constant_value_at(&chunk, 7).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
+
+        assert_eq!(opcode_at(&chunk, 8), OpCode::Print); // Check if ninth opcode is Print
+
+        assert_eq!(opcode_at(&chunk, 9), OpCode::Return); // Check if tenth opcode is Return
+    }
+
+    // ---------- Tests: Logical operators ----------
+
+    // Source code: true and false;
+
+    // Tokens: [TRUE, AND, FALSE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(true),
+    //     operator: And,
+    //     right: Literal::Bool(false)
+    // }))
+
+    // Chunk:
+    // [TRUE,
+    //  JUMP_IF_FALSE 2,  // jump over POP + right expr
+    //  POP,
+    //  FALSE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation:
+    // - If left is false, JumpIfFalse skips POP and the right expression.
+
+    // The following are executed:
+    // 1. TRUE
+    // 2. JUMP_IF_FALSE 2 (not taken because condition is true)
+    // 3. POP
+    // 4. FALSE
+    // 5. POP
+    // 6. RETURN
+
+    #[test]
+    fn test_logical_and() {
+        // ---------- Arrange ----------
+        let source = "true and false;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(2));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 3), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Return);
+    }
+
+    // Source code: false and true;
+
+    // Tokens: [FALSE, AND, TRUE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(false),
+    //     operator: And,
+    //     right: Literal::Bool(TRUE)
+    // }))
+
+    // Chunk:
+    // [FALSE,
+    //  JUMP_IF_FALSE 2,  // jump over POP + right expr
+    //  POP,
+    //  TRUE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation:
+    // - If left is false, JumpIfFalse skips POP and the right expression.
+
+    // The following are executed:
+    // 1. FALSE
+    // 2. JUMP_IF_FALSE 2 (taken because condition is false, jumps over POP and TRUE)
+    // 3. POP
+    // 4. RETURN
+
+    #[test]
+    fn test_logical_and_short_circuit() {
+        // ---------- Arrange ----------
+        let source = "false and true;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(2));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 3), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Return);
+    }
+
+    // Source code: true or false;
+
+    // Tokens: [TRUE, OR, FALSE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(true),
+    //     operator: Or,
+    //     right: Literal::Bool(false)
+    // }))
+
+    // Chunk:
+    // [TRUE,
+    //  JUMP_IF_FALSE 1,  // if false, skip the following JUMP and evaluate right
+    //  JUMP 2,           // if true, skip POP + right
+    //  POP,
+    //  FALSE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation of jumps:
+    // - JUMP_IF_FALSE 1 jumps over the next JUMP when left is false (so we evaluate right).
+    // - JUMP 2 skips POP and the right expression when left is true.
+
+    // The following are executed:
+    // 1. TRUE
+    // 2. JUMP_IF_FALSE 1 (not taken)
+    // 3. JUMP 2 (skips POP and FALSE)
+    // 4. POP
+    // 5. RETURN
+
+    #[test]
+    fn test_logical_or() {
+        // ---------- Arrange ----------
+        let source = "true or false;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(1));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Jump(2));
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Return);
+    }
+
+    // Source code: false or true;
+
+    // Tokens: [FALSE, OR, TRUE, SEMICOLON]
+
+    // Declarations:
+    // Statement(ExprStatement(Logical {
+    //     left: Literal::Bool(false),
+    //     operator: Or,
+    //     right: Literal::Bool(true)
+    // }))
+
+    // Chunk:
+    // [FALSE,
+    //  JUMP_IF_FALSE 1,  // if false, skip the following JUMP and evaluate right
+    //  JUMP 2,           // if true, skip POP + right
+    //  POP,
+    //  TRUE,
+    //  POP,
+    //  RETURN]
+
+    // Explanation (short-circuit):
+    // - Left is false, so JUMP_IF_FALSE is taken and skips the JUMP.
+    // - We POP the left and evaluate the right, leaving right’s value on the stack.
+
+    // Executed steps:
+    // 1. FALSE
+    // 2. JUMP_IF_FALSE 1 (taken; skips JUMP)
+    // 3. POP
+    // 4. TRUE
+    // 5. POP
+    // 6. RETURN
+
+    #[test]
+    fn test_logical_or_short_circuit() {
+        // ---------- Arrange ----------
+        let source = "false or true;";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(1));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Jump(2));
+        assert_eq!(opcode_at(&chunk, 3), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 4), OpCode::True);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Return);
+    }
+
+    // ---------- Tests: While loops ----------
+
+    // Source code: while (false) { print 1; }
+
+    // Tokens: [WHILE, LEFT_PAREN, FALSE, RIGHT_PAREN, LEFT_BRACE, PRINT, NUMBER(1), SEMICOLON, RIGHT_BRACE]
+
+    // Declarations:
+    // Statement(WhileStatement {
+    //     condition: Literal::Bool(false),
+    //     body: Block([
+    //         PrintStatement(Literal::Number(1))
+    //     ])
+    // })
+
+    // Chunk:
+    // [FALSE,             // evaluate condition
+    //  JUMP_IF_FALSE 4,   // if false, jump to the final POP: (1+1) + 4 = 6
+    //  POP,               // pop condition before body
+    //  CONSTANT 0 (1),    // body
+    //  PRINT,             // body
+    //  LOOP 6,            // jump back to the start of the loop: (5+1) - 6 = 0
+    //  POP,               // pop condition when exiting the loop
+    //  RETURN]
+
+    // Explanation of jumps:
+    // - JUMP_IF_FALSE 4: from index 2, jumps to 2 + 4 = 6, which is the final POP (exits loop without executing body).
+    // - LOOP 6: from index 6, jumps back to 6 - 6 = 0 (the FALSE at index 0).
+
+    // Executed steps:
+    // 1. FALSE
+    // 2. JUMP_IF_FALSE 4 (taken; skips POP, CONSTANT 0 (1), PRINT, LOOP 6)
+    // 3. POP (final POP at index 6)
+    // 4. RETURN
+
+    #[test]
+    fn test_while_false_body_not_executed() {
+        // ---------- Arrange ----------
+        let source = "while (false) { print 1; }";
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        assert_eq!(opcode_at(&chunk, 0), OpCode::False);
+        assert_eq!(opcode_at(&chunk, 1), OpCode::JumpIfFalse(4));
+        assert_eq!(opcode_at(&chunk, 2), OpCode::Pop);
+
+        assert!(matches!(opcode_at(&chunk, 3), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 3).unwrap(), Value::Number(1.0));
+
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Print);
+
+        assert_eq!(opcode_at(&chunk, 5), OpCode::Loop(6));
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop);
+        assert_eq!(opcode_at(&chunk, 7), OpCode::Return);
+    }
+
+    // Source code: var count = 0; while (count < 3) { print count; count = count + 1; } print "Done";
+
+    // Tokens:
+    // [VAR, IDENTIFIER(count), EQUAL, NUMBER(0), SEMICOLON,
+    //  WHILE, LEFT_PAREN, IDENTIFIER(count), LESS, NUMBER(3), RIGHT_PAREN,
+    //  LEFT_BRACE,
+    //    PRINT, IDENTIFIER(count), SEMICOLON,
+    //    IDENTIFIER(count), EQUAL, IDENTIFIER(count), PLUS, NUMBER(1), SEMICOLON,
+    //  RIGHT_BRACE,
+    //  PRINT, STRING("Done"), SEMICOLON]
+
+    // Declarations:
+    // Statement(VariableDeclaration {
+    //     name: "count",
+    //     initializer: Some(Literal::Number(0))
+    // }),
+    // Statement(WhileStatement {
+    //     condition: Binary {
+    //         left: Variable("count"),
+    //         operator: Less,
+    //         right: Literal::Number(3)
+    //     },
+    //     body: Block([
+    //         PrintStatement(Variable("count")),
+    //         ExprStatement(VariableAssignment {
+    //             name: "count",
+    //             value: Binary {
+    //                 left: Variable("count"),
+    //                 operator: Add,
+    //                 right: Literal::Number(1)
+    //             }
+    //         })
+    //     ])
+    // }),
+    // Statement(PrintStatement(Literal::String("Done")))
+
+    // Chunk:
+    // [CONSTANT 0 (0),
+    //  DEFINE_GLOBAL "count",
+    //  GET_GLOBAL "count",           // while (count < 3)
+    //  CONSTANT 1 (3),
+    //  LESS,
+    //  JUMP_IF_FALSE 9,              // jump to the final POP of the while: (5+1) + 9 = 15
+    //  POP,                          // discard the condition before the body
+    //  GET_GLOBAL "count",
+    //  PRINT,
+    //  GET_GLOBAL "count",
+    //  CONSTANT 2 (1),
+    //  ADD,
+    //  SET_GLOBAL "count",
+    //  POP,                          // discard assignment value
+    //  LOOP 13,                      // jump back to re-evaluate the condition: (14+1) - 13 = 2
+    //  POP,                          // final POP when exiting the while (condition)
+    //  CONSTANT 3 ("Done"),
+    //  PRINT,
+    //  RETURN]
+
+    // Explanation of jumps:
+    // - JUMP_IF_FALSE 9 (at index 5): from ip=6 jumps to 15 (the final POP of the while, skipping POP + body + LOOP).
+    // - LOOP 13 (at index 14): from ip=15 jumps back to 2 (start of the condition).
+
+    // Executed steps:
+    // 1. CONSTANT 0 (0)
+    // 2. DEFINE_GLOBAL "count"
+    // 3. GET_GLOBAL "count"
+    // 4. CONSTANT 1 (3)
+    // 5. LESS
+    // 6. JUMP_IF_FALSE 9 (not taken while count < 3)
+    // 7. POP
+    // 8. GET_GLOBAL "count"
+    // 9. PRINT
+    // 10. GET_GLOBAL "count"
+    // 11. CONSTANT 2 (1)
+    // 12. ADD
+    // 13. SET_GLOBAL "count"
+    // 14. POP
+    // 15. LOOP 13 (jumps back to 2, repeat steps 3-15 until count >= 3)
+    // 16. POP (final POP when exiting the while)
+    // 17. CONSTANT 3 ("Done")
+    // 18. PRINT
+    // 19. RETURN
+
+    #[test]
+    fn test_while_counter_loop() {
+        // ---------- Arrange ----------
+        let source =
+            r#"var count = 0; while (count < 3) { print count; count = count + 1; } print "Done";"#;
+
+        // ---------- Act ----------
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        // ---------- Assert ----------
+        // var count = 0;
+        assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(0.0));
+        assert!(matches!(opcode_at(&chunk, 1), OpCode::DefineGlobal(_)));
+
+        // while (count < 3)
+        assert!(matches!(opcode_at(&chunk, 2), OpCode::GetGlobal(_)));
+        assert!(matches!(opcode_at(&chunk, 3), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 3).unwrap(), Value::Number(3.0));
+        assert_eq!(opcode_at(&chunk, 4), OpCode::Less);
+        assert_eq!(opcode_at(&chunk, 5), OpCode::JumpIfFalse(9));
+        assert_eq!(opcode_at(&chunk, 6), OpCode::Pop);
+
+        // body: print count;
+        assert!(matches!(opcode_at(&chunk, 7), OpCode::GetGlobal(_)));
+        assert_eq!(opcode_at(&chunk, 8), OpCode::Print);
+
+        // body: count = count + 1;
+        assert!(matches!(opcode_at(&chunk, 9), OpCode::GetGlobal(_)));
+        assert!(matches!(opcode_at(&chunk, 10), OpCode::Constant(_)));
+        assert_eq!(constant_value_at(&chunk, 10).unwrap(), Value::Number(1.0));
+        assert_eq!(opcode_at(&chunk, 11), OpCode::Add);
+        assert!(matches!(opcode_at(&chunk, 12), OpCode::SetGlobal(_)));
+        assert_eq!(opcode_at(&chunk, 13), OpCode::Pop);
+
+        // loop back and while exit
+        assert_eq!(opcode_at(&chunk, 14), OpCode::Loop(13)); // back to index 2
+        assert_eq!(opcode_at(&chunk, 15), OpCode::Pop); // final POP (condition)
+
+        // print "Done";
+        assert!(matches!(opcode_at(&chunk, 16), OpCode::Constant(_)));
+        assert_eq!(opcode_at(&chunk, 17), OpCode::Print);
+
+        // end of program
+        assert_eq!(opcode_at(&chunk, 18), OpCode::Return);
+    }
+
+    // ---------- Tests: For loops ----------
+
+    #[test]
+    fn test_empty_for_loop() {
+        let source = "for (;;) {}";
+        let chunk = compile_source(source.to_string()).unwrap();
+        assert_eq!(chunk.chunk, vec![OpCode::Loop(1), OpCode::Return]);
+    }
+
+    #[test]
+    fn test_for_loop() {
+        let source = "
+        for (var i = 0; i < 5; i = i + 1) {
+            print i;
+        }
+        ";
+        let chunk = compile_source(source.to_string()).unwrap();
+
+        assert_eq!(
+            chunk.constants,
+            vec![Value::Number(0.0), Value::Number(5.0), Value::Number(1.0)]
+        );
+        assert_eq!(
+            chunk.chunk,
+            vec![
+                OpCode::Constant(0), // initializer clause
+                //
+                OpCode::GetLocal(0), // i  \
+                OpCode::Constant(1), // 5  | condition clause i < 5
+                OpCode::Less,        // <  /
+                //
+                OpCode::JumpIfFalse(11), // Jump out of the loop
+                OpCode::Pop,             // Pop condition clause
+                OpCode::Jump(6),         // Jump to the body
+                //
+                OpCode::GetLocal(0), //  \
+                OpCode::Constant(2), //  | increment clause
+                OpCode::Add,         //  | i = i + 1
+                OpCode::SetLocal(0), //  /
+                //
+                OpCode::Pop,      //
+                OpCode::Loop(12), // jump back to the loop start
+                //
+                OpCode::GetLocal(0), // body
+                OpCode::Print,       // print i;
+                //
+                OpCode::Loop(9), // jump to the increment clause
+                OpCode::Pop,
+                OpCode::Pop,
+                OpCode::Return
+            ]
+        );
+    }
+
+    #[test]
+    fn test_cannot_access_for_loop_variable_from_outside() {
+        let source = "
+        for (var i = 0; i < 5; i = i + 1) {
+            print i;
+        }
+        print i; // Should fail
+        ";
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 5;
+        let expected_error = CompilationError::UndefinedVariable("i".to_string(), line);
         assert_eq!(error, expected_error);
     }
 }

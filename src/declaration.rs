@@ -1,6 +1,6 @@
 use crate::expr::Expr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub inner: DeclarationKind,
     pub line: usize,
@@ -27,9 +27,50 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn if_statement(
+        condition: Expr,
+        then_branch: Box<Declaration>,
+        else_branch: Option<Box<Declaration>>,
+        line: usize,
+    ) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::IfStatement {
+                condition,
+                then_branch,
+                else_branch,
+            }),
+            line,
+        }
+    }
+
+    pub fn while_statement(condition: Expr, body: Box<Declaration>, line: usize) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::WhileStatement { condition, body }),
+            line,
+        }
+    }
+
+    pub fn for_statement(
+        initializer_clause: Option<Declaration>,
+        condition_clause: Option<Expr>,
+        increment_clause: Option<Expr>,
+        body: Declaration,
+        line: usize,
+    ) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::ForStatement {
+                initializer_clause: Box::new(initializer_clause),
+                condition_clause,
+                increment_clause,
+                body: Box::new(body),
+            }),
+            line,
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DeclarationKind {
     VariableDeclaration {
         name: String,
@@ -39,8 +80,23 @@ pub enum DeclarationKind {
     Block(Vec<Declaration>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     ExprStatement(Expr),
     PrintStatement(Expr),
+    IfStatement {
+        condition: Expr,
+        then_branch: Box<Declaration>,
+        else_branch: Option<Box<Declaration>>,
+    },
+    WhileStatement {
+        condition: Expr,
+        body: Box<Declaration>,
+    },
+    ForStatement {
+        initializer_clause: Box<Option<Declaration>>,
+        condition_clause: Option<Expr>,
+        increment_clause: Option<Expr>,
+        body: Box<Declaration>,
+    },
 }

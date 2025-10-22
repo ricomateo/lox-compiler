@@ -93,11 +93,96 @@ impl Parser {
     fn statement(&mut self) -> Result<Declaration, ParseError> {
         if self.matches(TokenType::Print) {
             return self.print_statement();
+        } else if self.matches(TokenType::For) {
+            return self.for_statement();
         } else if self.matches(TokenType::LeftBrace) {
             return self.block();
+        } else if self.matches(TokenType::If) {
+            self.if_statement()
+        } else if self.matches(TokenType::While) {
+            self.while_statement()
         } else {
             return self.expression_statement();
         }
+    }
+
+    fn while_statement(&mut self) -> Result<Declaration, ParseError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'while'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after condition.")?;
+
+        let body = Box::new(self.statement()?);
+
+        let line = self.previous_token_line();
+        let declaration = Declaration::while_statement(condition, body, line);
+        Ok(declaration)
+    }
+
+    fn for_statement(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
+        self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
+        let initializer_clause = self.parse_initializer_clause()?;
+        let condition_clause = self.parse_condition_clause()?;
+        let increment_clause = self.parse_increment_clause()?;
+
+        let body = self.statement()?;
+        let for_statement = Declaration::for_statement(
+            initializer_clause,
+            condition_clause,
+            increment_clause,
+            body,
+            line,
+        );
+        Ok(for_statement)
+    }
+
+    fn parse_initializer_clause(&mut self) -> Result<Option<Declaration>, ParseError> {
+        let initializer_clause = if self.matches(TokenType::Semicolon) {
+            None
+        } else if self.matches(TokenType::Var) {
+            Some(self.var_declaration()?)
+        } else {
+            Some(self.expression_statement()?)
+        };
+        Ok(initializer_clause)
+    }
+
+    fn parse_condition_clause(&mut self) -> Result<Option<Expr>, ParseError> {
+        if !self.matches(TokenType::Semicolon) {
+            let condition = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expect ';' after loop condition.")?;
+            return Ok(Some(condition));
+        } else {
+            return Ok(None);
+        }
+    }
+
+    fn parse_increment_clause(&mut self) -> Result<Option<Expr>, ParseError> {
+        if !self.matches(TokenType::RightParen) {
+            let increment_clause = self.expression()?;
+            self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
+            return Ok(Some(increment_clause));
+        } else {
+            return Ok(None);
+        }
+    }
+
+    fn if_statement(&mut self) -> Result<Declaration, ParseError> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+
+        let then_branch = Box::new(self.statement()?);
+
+        let else_branch = if self.matches(TokenType::Else) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+
+        let line = self.previous_token_line();
+        let declaration = Declaration::if_statement(condition, then_branch, else_branch, line);
+        Ok(declaration)
     }
 
     fn block(&mut self) -> Result<Declaration, ParseError> {
@@ -299,6 +384,26 @@ impl Parser {
         }
     }
 
+    fn logic_and(&mut self, left: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
+        let operator = self.previous.clone().unwrap();
+        let right = self.parse_precedence(Precedence::And.next())?;
+        Ok(Expr::Logical {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        })
+    }
+
+    fn logic_or(&mut self, left: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
+        let operator = self.previous.clone().unwrap();
+        let right = self.parse_precedence(Precedence::Or.next())?;
+        Ok(Expr::Logical {
+            left: Box::new(left),
+            operator,
+            right: Box::new(right),
+        })
+    }
+
     // ---------- Helpers ----------
 
     fn advance(&mut self) {
@@ -424,6 +529,8 @@ fn get_rule(token_type: TokenType) -> ParseRule {
         TokenType::LessEqual => ParseRule::new(None, Some(Parser::binary), Precedence::Comparison),
         TokenType::String => ParseRule::new(Some(Parser::string), None, Precedence::None),
         TokenType::Identifier => ParseRule::new(Some(Parser::variable), None, Precedence::None),
+        TokenType::And => ParseRule::new(None, Some(Parser::logic_and), Precedence::And),
+        TokenType::Or => ParseRule::new(None, Some(Parser::logic_or), Precedence::Or),
         _ => ParseRule::new(None, None, Precedence::None),
     }
 }
@@ -431,6 +538,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::declaration::DeclarationKind;
     use crate::expr::Expr;
     use crate::scanner::Scanner;
 
@@ -439,6 +547,13 @@ mod tests {
         let tokens = scanner.scan();
         let mut parser = Parser::new(tokens);
         parser.expression().unwrap()
+    }
+
+    fn scan_and_parse_declarations(source: &str) -> Vec<Declaration> {
+        let mut scanner = Scanner::new(source.into());
+        let tokens = scanner.scan();
+        let mut parser = Parser::new(tokens);
+        parser.parse()
     }
 
     #[test]
@@ -580,5 +695,93 @@ mod tests {
             assert_eq!(operator.kind, TokenType::Star);
             assert_eq!(*right, Expr::Literal(Literal::Number(4.0)));
         }
+    }
+
+    #[test]
+    fn test_for_statement() {
+        let source = "
+        for (var i = 0; i < 5; i = i + 1) {
+            print i;
+        }
+        ";
+        let declarations = scan_and_parse_declarations(source);
+        let declaration = declarations[0].clone();
+
+        // Check the declaration is a for statement
+        match declaration.inner {
+            DeclarationKind::Statement(Statement::ForStatement {
+                initializer_clause,
+                condition_clause,
+                increment_clause,
+                body,
+            }) => {
+                // Check the initialized clause
+                let expected_initializer_clause = Declaration::variable_declaration(
+                    "i".into(),
+                    Some(Expr::Literal(Literal::Number(0.0))),
+                    2,
+                );
+                let initializer_clause = initializer_clause.unwrap();
+                assert_eq!(initializer_clause, expected_initializer_clause);
+
+                // Check the condition clause
+                match condition_clause.unwrap() {
+                    Expr::Binary {
+                        left,
+                        operator,
+                        right,
+                    } => {
+                        let expected_left = Expr::Variable { name: "i".into() };
+                        assert_eq!(*left, expected_left);
+
+                        assert_eq!(operator.kind, TokenType::Less);
+
+                        let expected_right = Expr::Literal(Literal::Number(5.0));
+                        assert_eq!(*right, expected_right);
+                    }
+                    _ => panic!("Expected binary condition clause"),
+                }
+
+                // Check the increment clause
+                match increment_clause.unwrap() {
+                    Expr::VariableAssignment { name, value } => {
+                        assert_eq!(name, "i".to_string());
+                        match *value {
+                            Expr::Binary {
+                                left,
+                                operator,
+                                right,
+                            } => {
+                                let expected_left = Expr::Variable { name: "i".into() };
+                                assert_eq!(*left, expected_left);
+
+                                assert_eq!(operator.kind, TokenType::Plus);
+
+                                let expected_right = Expr::Literal(Literal::Number(1.0));
+                                assert_eq!(*right, expected_right);
+                            }
+                            _ => panic!(
+                                "Expected binary expression as increment condition clause value"
+                            ),
+                        }
+                    }
+                    _ => panic!("Expected variable assignment as increment clause"),
+                }
+
+                match body.inner {
+                    DeclarationKind::Block(declarations) => {
+                        let expected_statement =
+                            Statement::PrintStatement(Expr::Variable { name: "i".into() });
+                        assert_eq!(
+                            declarations,
+                            vec![Declaration::statement(expected_statement, 3)]
+                        )
+                    }
+                    _ => panic!("Expected block as for statement body"),
+                }
+            }
+            _ => panic!("Expected for statement"),
+        }
+        dbg!(declarations);
     }
 }

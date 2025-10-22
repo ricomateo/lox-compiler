@@ -1,0 +1,9 @@
+var run = true;
+
+while (run) {
+    print run;
+    run = false;
+}
+
+print run;
+print "Done";

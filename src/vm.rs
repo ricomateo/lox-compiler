@@ -182,6 +182,18 @@ impl Vm {
                     // and stores it in the stack slot corresponding to the local variable
                     self.stack[slot] = self.peek(0).unwrap().clone();
                 }
+                OpCode::Jump(offset) => {
+                    self.instruction_pointer += offset;
+                }
+                OpCode::JumpIfFalse(offset) => {
+                    let condition = self.peek(0).unwrap();
+                    if Self::is_falsey(&condition) {
+                        self.instruction_pointer += offset;
+                    }
+                }
+                OpCode::Loop(offset) => {
+                    self.instruction_pointer -= offset;
+                }
             }
         }
     }
@@ -558,19 +570,39 @@ mod tests {
     }
 
     #[test]
-    fn test_reassign_global_variable_from_block() {
+    fn test_for_loop_increment_variable() {
+        // Increment a global variable from a for loop
+        // and check its value
         let source = "
-        var global = 0;
-        {
-            global = 1;
-        }";
-
-        let chunk = compile_source(source.to_string());
+            var global = 0;
+            for (var i = 0; i < 5; i = i + 1) {
+                global = global + 1;
+            }
+        ";
+        let chunk = compile_source(source.into());
         let mut vm = Vm::new(chunk);
         let result = vm.run();
         assert!(result.is_ok());
 
-        let expected_value = Some(&Value::Number(1.0));
+        let expected_value = Some(&Value::Number(5.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_for_loop_decrementing_variable() {
+        // Perform the same test but with different condition clause and increment clause
+        let source = "
+            var global = 5;
+            for (var i = 5; i > 0; i = i - 1) {
+                global = global - 1;
+            }
+        ";
+        let chunk = compile_source(source.into());
+        let mut vm = Vm::new(chunk);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(0.0));
         assert_eq!(vm.globals.get("global"), expected_value);
     }
 }

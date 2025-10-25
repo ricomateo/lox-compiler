@@ -190,6 +190,13 @@ impl Compiler {
                 }
                 self.end_scope();
             }
+            DeclarationKind::Statement(Statement::FunctionDeclaration {
+                name,
+                parameters,
+                body,
+            }) => {
+                // TODO: Implement function compilation
+            }
         }
         Ok(())
     }

@@ -68,6 +68,22 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn function_declaration(
+        name: String,
+        parameters: Vec<String>,
+        body: Declaration,
+        line: usize,
+    ) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::FunctionDeclaration {
+                name,
+                parameters,
+                body: Box::new(body),
+            }),
+            line,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -97,6 +113,11 @@ pub enum Statement {
         initializer_clause: Box<Option<Declaration>>,
         condition_clause: Option<Expr>,
         increment_clause: Option<Expr>,
+        body: Box<Declaration>,
+    },
+    FunctionDeclaration {
+        name: String,
+        parameters: Vec<String>,
         body: Box<Declaration>,
     },
 }

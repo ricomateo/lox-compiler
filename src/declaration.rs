@@ -72,14 +72,14 @@ impl Declaration {
     pub fn function_declaration(
         name: String,
         parameters: Vec<String>,
-        body: Declaration,
+        body: Box<Declaration>,
         line: usize,
     ) -> Self {
         Self {
             inner: DeclarationKind::Statement(Statement::FunctionDeclaration {
                 name,
                 parameters,
-                body: Box::new(body),
+                body,
             }),
             line,
         }

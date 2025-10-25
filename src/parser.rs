@@ -84,7 +84,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Declaration, ParseError> {
-        if self.matches(TokenType::Var) {
+        if self.matches(TokenType::Fun) {
+            return self.fun_declaration();
+        } else if self.matches(TokenType::Var) {
             return self.var_declaration();
         }
         self.statement()
@@ -104,6 +106,38 @@ impl Parser {
         } else {
             return self.expression_statement();
         }
+    }
+
+    fn fun_declaration(&mut self) -> Result<Declaration, ParseError> {
+        self.consume(TokenType::Fun, "Expect 'fun' keyword.")?;
+
+        let name = self.parse_variable("Expect function name.")?.lexeme.clone();
+
+        self.consume(TokenType::LeftParen, "Expect '(' after function name.")?;
+
+        let mut parameters = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                if parameters.len() >= 255 {
+                    self.error("Cannot have more than 255 parameters.");
+                }
+                let param_token = self.parse_variable("Expect parameter name.")?;
+                parameters.push(param_token.lexeme.clone());
+
+                if !self.matches(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+
+        self.consume(TokenType::LeftBrace, "Expect '{' before function body.")?;
+        let body = Box::new(self.block()?);
+
+        let line = self.previous_token_line();
+        let declaration = Declaration::function_declaration(name, parameters, body, line);
+        Ok(declaration)
     }
 
     fn while_statement(&mut self) -> Result<Declaration, ParseError> {

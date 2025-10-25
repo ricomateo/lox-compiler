@@ -31,8 +31,13 @@ impl Vm {
             slot_index: 0,
         };
 
+        let mut stack = Vec::with_capacity(STACK_MAX);
+        // TODO: Check this
+        // Initialize the stack with Nil value to avoid index out of bounds in tests
+        stack.push(Value::Nil);
+
         Self {
-            stack: Vec::with_capacity(STACK_MAX),
+            stack,
             frames: vec![frame],
             globals: HashMap::new(),
         }
@@ -394,282 +399,303 @@ pub enum VmError {
     RuntimeError,
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use crate::{
-//         chunk::{Chunk, OpCode},
-//         compiler::Compiler,
-//         parser::Parser,
-//         scanner::Scanner,
-//     };
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        chunk::{Chunk, OpCode},
+        compiler::Compiler,
+        parser::Parser,
+        scanner::Scanner,
+    };
 
-//     /// Creates and run a vm with the given chunk, checks its result is ok
-//     /// and returns the value at the top of the stack
-//     fn run_chunk_and_return_stack_top(chunk: Chunk) -> Option<Value> {
-//         let mut vm = Vm::new(chunk);
-//         let result = vm.run();
-//         assert!(result.is_ok());
-//         vm.peek(0).cloned()
-//     }
+    /// Creates and run a vm with the given chunk, checks its result is ok
+    /// and returns the value at the top of the stack
+    fn run_chunk_and_return_stack_top(function: Function) -> Option<Value> {
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+        vm.peek(0).cloned()
+    }
 
-//     /// Creates a chunk with the opcodes to represent the operation formed by the
-//     /// given operands and operator, and adds the Return opcode at the end.
-//     fn chunk_with_operands_and_operator(a: Value, b: Value, operator: OpCode) -> Chunk {
-//         let mut chunk = Chunk::new();
-//         // Add operand `a`
-//         let constant_index = chunk.add_constant(a);
-//         chunk.write(OpCode::Constant(constant_index), 0);
+    /// Creates a chunk with the opcodes to represent the operation formed by the
+    /// given operands and operator, and adds the Return opcode at the end.
+    fn chunk_with_operands_and_operator(a: Value, b: Value, operator: OpCode) -> Chunk {
+        let mut chunk = Chunk::new();
+        // Add operand `a`
+        let constant_index = chunk.add_constant(a);
+        chunk.write(OpCode::Constant(constant_index), 0);
 
-//         // Add operand `b`
-//         let constant_index = chunk.add_constant(b);
-//         chunk.write(OpCode::Constant(constant_index), 0);
+        // Add operand `b`
+        let constant_index = chunk.add_constant(b);
+        chunk.write(OpCode::Constant(constant_index), 0);
 
-//         // Add operator
-//         chunk.write(operator, 0);
-//         chunk.write(OpCode::Return, 0);
-//         chunk
-//     }
+        // Add operator
+        chunk.write(operator, 0);
+        chunk.write(OpCode::Return, 0);
+        chunk
+    }
 
-//     #[test]
-//     fn test_number_addition() {
-//         // Test 2 + 3 equals 5
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(3.0);
-//         let operator = OpCode::Add;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+    fn function_from_chunk(chunk: Chunk) -> Function {
+        Function {
+            arity: 0,
+            chunk,
+            name: "".into(),
+        }
+    }
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Number(5.0);
-//         assert_eq!(stack_top, expected_value);
-//     }
+    #[test]
+    fn test_number_addition() {
+        // Test 2 + 3 equals 5
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Add;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//     #[test]
-//     fn test_number_subtraction() {
-//         // Test 2 - 3 equals -1
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(3.0);
-//         let operator = OpCode::Subtract;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Number(5.0);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Number(-1.0);
-//         assert_eq!(stack_top, expected_value);
-//     }
+    #[test]
+    fn test_number_subtraction() {
+        // Test 2 - 3 equals -1
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Subtract;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//     #[test]
-//     fn test_number_multiplication() {
-//         // Test 2 * 3 equals 6
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(3.0);
-//         let operator = OpCode::Multiply;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Number(-1.0);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Number(6.0);
-//         assert_eq!(stack_top, expected_value);
-//     }
+    #[test]
+    fn test_number_multiplication() {
+        // Test 2 * 3 equals 6
+        let a = Value::Number(2.0);
+        let b = Value::Number(3.0);
+        let operator = OpCode::Multiply;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//     #[test]
-//     fn test_number_division() {
-//         // Test 8 / 4 equals 2
-//         let a = Value::Number(8.0);
-//         let b = Value::Number(4.0);
-//         let operator = OpCode::Divide;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Number(6.0);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Number(2.0);
-//         assert_eq!(stack_top, expected_value);
-//     }
+    #[test]
+    fn test_number_division() {
+        // Test 8 / 4 equals 2
+        let a = Value::Number(8.0);
+        let b = Value::Number(4.0);
+        let operator = OpCode::Divide;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//     #[test]
-//     fn test_string_concatenation() {
-//         // Test "hello" + "world" equals "helloworld"
-//         let a = Value::String("hello".into());
-//         let b = Value::String("world".into());
-//         let operator = OpCode::Add;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Number(2.0);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::String("helloworld".into());
-//         assert_eq!(stack_top, expected_value);
-//     }
+    fn compile_source(source: String) -> Function {
+        let tokens = Scanner::new(source).scan();
+        let declarations = Parser::new(tokens).parse();
+        Compiler::new().compile(&declarations).unwrap()
+    }
 
-//     #[test]
-//     fn test_number_greater() {
-//         // Test 2 > 1 returns true
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(1.0);
-//         let operator = OpCode::Greater;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+    #[test]
+    fn test_string_concatenation() {
+        // Test "hello" + "world" equals "helloworld"
+        let a = Value::String("hello".into());
+        let b = Value::String("world".into());
+        let operator = OpCode::Add;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(true);
-//         assert_eq!(stack_top, expected_value);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::String("helloworld".into());
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         // Test 1 > 2 returns false
-//         let a = Value::Number(1.0);
-//         let b = Value::Number(2.0);
-//         let operator = OpCode::Greater;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+    #[test]
+    fn test_number_greater() {
+        // Test 2 > 1 returns true
+        let a = Value::Number(2.0);
+        let b = Value::Number(1.0);
+        let operator = OpCode::Greater;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(false);
-//         assert_eq!(stack_top, expected_value);
-//     }
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
 
-//     #[test]
-//     fn test_number_less() {
-//         // Test 1 < 2 returns true
-//         let a = Value::Number(1.0);
-//         let b = Value::Number(2.0);
-//         let operator = OpCode::Less;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        // Test 1 > 2 returns false
+        let a = Value::Number(1.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Greater;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(true);
-//         assert_eq!(stack_top, expected_value);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         // Test 2 < 1 returns false
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(1.0);
-//         let operator = OpCode::Less;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+    #[test]
+    fn test_number_less() {
+        // Test 1 < 2 returns true
+        let a = Value::Number(1.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Less;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(false);
-//         assert_eq!(stack_top, expected_value);
-//     }
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
 
-//     #[test]
-//     fn test_numbers_equal() {
-//         // Test 2 equals 2 returns true
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(2.0);
-//         let operator = OpCode::Equal;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        // Test 2 < 1 returns false
+        let a = Value::Number(2.0);
+        let b = Value::Number(1.0);
+        let operator = OpCode::Less;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(true);
-//         assert_eq!(stack_top, expected_value);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         // Test 2 equals 0 returns false
-//         let a = Value::Number(2.0);
-//         let b = Value::Number(0.0);
-//         let operator = OpCode::Equal;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+    #[test]
+    fn test_numbers_equal() {
+        // Test 2 equals 2 returns true
+        let a = Value::Number(2.0);
+        let b = Value::Number(2.0);
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(false);
-//         assert_eq!(stack_top, expected_value);
-//     }
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
 
-//     #[test]
-//     fn test_strings_equal() {
-//         // Test "hello" equals "hello" returns true
-//         let a = Value::String("hello".into());
-//         let b = Value::String("hello".into());
-//         let operator = OpCode::Equal;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        // Test 2 equals 0 returns false
+        let a = Value::Number(2.0);
+        let b = Value::Number(0.0);
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(true);
-//         assert_eq!(stack_top, expected_value);
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         // Test "hello" equals "world" returns false
-//         let a = Value::String("hello".into());
-//         let b = Value::String("world".into());
-//         let operator = OpCode::Equal;
-//         let chunk = chunk_with_operands_and_operator(a, b, operator);
+    #[test]
+    fn test_strings_equal() {
+        // Test "hello" equals "hello" returns true
+        let a = Value::String("hello".into());
+        let b = Value::String("hello".into());
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//         let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-//         let expected_value = Value::Bool(false);
-//         assert_eq!(stack_top, expected_value);
-//     }
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(true);
+        assert_eq!(stack_top, expected_value);
 
-//     fn compile_source(source: String) -> Chunk {
-//         let tokens = Scanner::new(source).scan();
-//         let declarations = Parser::new(tokens).parse();
-//         Compiler::new().compile(&declarations).unwrap()
-//     }
+        // Test "hello" equals "world" returns false
+        let a = Value::String("hello".into());
+        let b = Value::String("world".into());
+        let operator = OpCode::Equal;
+        let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-//     #[test]
-//     fn test_variable_declaration() {
-//         let source = "var foo = 42;";
-//         let chunk = compile_source(source.into());
-//         let mut vm = Vm::new(chunk);
-//         let result = vm.run();
-//         assert!(result.is_ok());
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::Bool(false);
+        assert_eq!(stack_top, expected_value);
+    }
 
-//         let expected_value = Some(&Value::Number(42.0));
-//         assert_eq!(vm.globals.get("foo"), expected_value);
-//     }
+    #[test]
+    fn test_variable_declaration() {
+        let source = "var foo = 42;";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
 
-//     #[test]
-//     fn test_variable_access() {
-//         let source = "
-//             var foo = 2;
-//             var result = 2 + foo;
-//         ";
-//         let chunk = compile_source(source.into());
-//         let mut vm = Vm::new(chunk);
-//         let result = vm.run();
-//         assert!(result.is_ok());
+        let expected_value = Some(&Value::Number(42.0));
+        assert_eq!(vm.globals.get("foo"), expected_value);
+    }
 
-//         let expected_value = Some(&Value::Number(4.0));
-//         assert_eq!(vm.globals.get("result"), expected_value);
-//     }
+    #[test]
+    fn test_variable_access() {
+        let source = "
+            var foo = 2;
+            var result = 2 + foo;
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
 
-//     #[test]
-//     fn test_variable_assignment() {
-//         let source = "
-//             var foo = 42;
-//             foo = 1;
-//         ";
-//         let chunk = compile_source(source.into());
-//         let mut vm = Vm::new(chunk);
-//         let result = vm.run();
-//         assert!(result.is_ok());
+        let expected_value = Some(&Value::Number(4.0));
+        assert_eq!(vm.globals.get("result"), expected_value);
+    }
 
-//         let expected_value = Some(&Value::Number(1.0));
-//         assert_eq!(vm.globals.get("foo"), expected_value);
-//     }
+    #[test]
+    fn test_variable_assignment() {
+        let source = "
+            var foo = 42;
+            foo = 1;
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
 
-//     #[test]
-//     fn test_for_loop_increment_variable() {
-//         // Increment a global variable from a for loop
-//         // and check its value
-//         let source = "
-//             var global = 0;
-//             for (var i = 0; i < 5; i = i + 1) {
-//                 global = global + 1;
-//             }
-//         ";
-//         let chunk = compile_source(source.into());
-//         let mut vm = Vm::new(chunk);
-//         let result = vm.run();
-//         assert!(result.is_ok());
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("foo"), expected_value);
+    }
 
-//         let expected_value = Some(&Value::Number(5.0));
-//         assert_eq!(vm.globals.get("global"), expected_value);
-//     }
+    #[test]
+    fn test_for_loop_increment_variable() {
+        // Increment a global variable from a for loop
+        // and check its value
+        let source = "
+            var global = 0;
+            for (var i = 0; i < 5; i = i + 1) {
+                global = global + 1;
+            }
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
 
-//     #[test]
-//     fn test_for_loop_decrementing_variable() {
-//         // Perform the same test but with different condition clause and increment clause
-//         let source = "
-//             var global = 5;
-//             for (var i = 5; i > 0; i = i - 1) {
-//                 global = global - 1;
-//             }
-//         ";
-//         let chunk = compile_source(source.into());
-//         let mut vm = Vm::new(chunk);
-//         let result = vm.run();
-//         assert!(result.is_ok());
+        let expected_value = Some(&Value::Number(5.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
 
-//         let expected_value = Some(&Value::Number(0.0));
-//         assert_eq!(vm.globals.get("global"), expected_value);
-//     }
-// }
+    #[test]
+    fn test_for_loop_decrementing_variable() {
+        // Perform the same test but with different condition clause and increment clause
+        let source = "
+            var global = 5;
+            for (var i = 5; i > 0; i = i - 1) {
+                global = global - 1;
+            }
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(0.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+}

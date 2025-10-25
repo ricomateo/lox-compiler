@@ -11,7 +11,7 @@ pub enum Value {
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct Function {
-    arity: usize,
+    pub arity: usize,
     pub chunk: Chunk,
     pub name: String,
 }

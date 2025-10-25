@@ -58,7 +58,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self, name: &str) {
-        println!("== {name} ==");
+        println!("== {} ==", if name.is_empty() { "script" } else { name });
         let count = self.chunk.len();
         let mut offset = 0;
         while offset < count {
@@ -142,6 +142,9 @@ impl Chunk {
             Value::Nil => println!("{:<16} {:>4} 'nil'", name, constant_index),
             Value::String(v) => {
                 println!("{:<16} {:>4} '{}'", name, constant_index, v)
+            }
+            Value::Function(f) => {
+                println!("{:<16} {:>4} '<fn {}>'", name, constant_index, f.name)
             }
         }
 

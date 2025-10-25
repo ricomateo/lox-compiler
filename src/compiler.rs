@@ -876,7 +876,7 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
 
-        assert_eq!(opcode_at(&chunk, 1), OpCode::GetLocal(0)); // Check if third opcode is GetLocal 0
+        assert_eq!(opcode_at(&chunk, 1), OpCode::GetLocal(1)); // Check if third opcode is GetLocal 0
 
         assert_eq!(opcode_at(&chunk, 2), OpCode::Print); // Check if fourth opcode is Print
 
@@ -918,7 +918,7 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
         assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
-        assert_eq!(opcode_at(&chunk, 2), OpCode::SetLocal(0)); // Check if third opcode is Set local variable 'a' at index 0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::SetLocal(1)); // Check if third opcode is Set local variable 'a' at index 0
 
         assert_eq!(opcode_at(&chunk, 3), OpCode::Pop); // Check if fourth opcode is Pop
 
@@ -972,11 +972,11 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
         assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
-        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(0)); // Check if third opcode is Get local variable 'a' at index 0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(1)); // Check if third opcode is Get local variable 'a' at index 0
 
         assert_eq!(opcode_at(&chunk, 3), OpCode::Print); // Check if fourth opcode is Print
 
-        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(1)); // Check if fifth opcode is Get local variable 'b' at index 1
+        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(2)); // Check if fifth opcode is Get local variable 'b' at index 1
 
         assert_eq!(opcode_at(&chunk, 5), OpCode::Print); // Check if sixth opcode is Print
 
@@ -1327,7 +1327,7 @@ mod tests {
             vec![
                 OpCode::Constant(0), // initializer clause
                 //
-                OpCode::GetLocal(0), // i  \
+                OpCode::GetLocal(1), // i  \
                 OpCode::Constant(1), // 5  | condition clause i < 5
                 OpCode::Less,        // <  /
                 //
@@ -1335,15 +1335,15 @@ mod tests {
                 OpCode::Pop,             // Pop condition clause
                 OpCode::Jump(6),         // Jump to the body
                 //
-                OpCode::GetLocal(0), //  \
+                OpCode::GetLocal(1), //  \
                 OpCode::Constant(2), //  | increment clause
                 OpCode::Add,         //  | i = i + 1
-                OpCode::SetLocal(0), //  /
+                OpCode::SetLocal(1), //  /
                 //
                 OpCode::Pop,      //
                 OpCode::Loop(12), // jump back to the loop start
                 //
-                OpCode::GetLocal(0), // body
+                OpCode::GetLocal(1), // body
                 OpCode::Print,       // print i;
                 //
                 OpCode::Loop(9), // jump to the increment clause

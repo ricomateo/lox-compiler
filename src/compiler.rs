@@ -7,6 +7,8 @@ use crate::{
     value::{Function, Value},
 };
 
+use crate::chunk::Chunk;
+
 use crate::expr::Literal;
 use crate::scanner::Token;
 use crate::scanner::TokenType;
@@ -125,7 +127,7 @@ impl Compiler {
             }
             DeclarationKind::Statement(Statement::WhileStatement { condition, body }) => {
                 // Remember the beginning of the loop
-                let loop_start = self.function.chunk.chunk.len();
+                let loop_start = self.current_chunk().chunk.len();
 
                 self.compile_expr(condition)?;
 
@@ -158,7 +160,7 @@ impl Compiler {
                 if let Some(initializer_clause) = *initializer_clause.clone() {
                     self.compile_declaration(&initializer_clause)?;
                 }
-                let mut loop_start = self.function.chunk.chunk.len();
+                let mut loop_start = self.current_chunk().chunk.len();
                 let mut exit_jump = None;
 
                 if let Some(condition_clause) = condition_clause {
@@ -171,7 +173,7 @@ impl Compiler {
                     // The increment clause must be executed at the end of each loop,
                     // thats why here we jump right to the body
                     let body_jump = self.emit_jump(OpCode::Jump(usize::MAX));
-                    let increment_start = self.function.chunk.chunk.len();
+                    let increment_start = self.current_chunk().chunk.len();
                     self.compile_expr(increment_clause)?;
                     self.emit_byte(OpCode::Pop, self.current_line);
                     self.emit_loop(loop_start);
@@ -326,24 +328,28 @@ impl Compiler {
 
     // ---------- Helpers ----------
 
+    fn current_chunk(&mut self) -> &mut Chunk {
+        &mut self.function.chunk
+    }
+
     // Emit a loop instruction to jump back to the given position (the index in the chunk where the loop starts)
     fn emit_loop(&mut self, loop_start: usize) {
-        let offset = self.function.chunk.chunk.len() - loop_start + 1;
+        let offset = self.current_chunk().chunk.len() - loop_start + 1;
         self.emit_byte(OpCode::Loop(offset), self.current_line);
     }
 
     // Emit a jump instruction with a placeholder offset
     // Returns the location of the jump instruction in the chunk
     fn emit_jump(&mut self, jump_opcode: OpCode) -> usize {
-        let offset = self.function.chunk.chunk.len();
+        let offset = self.current_chunk().chunk.len();
         self.emit_byte(jump_opcode, self.current_line);
         offset
     }
 
     fn patch_jump(&mut self, jump_pos: usize) {
-        let jump_offset = self.function.chunk.chunk.len() - jump_pos - 1;
+        let jump_offset = self.current_chunk().chunk.len() - jump_pos - 1;
 
-        match &mut self.function.chunk.chunk[jump_pos] {
+        match &mut self.current_chunk().chunk[jump_pos] {
             OpCode::Jump(offset) | OpCode::JumpIfFalse(offset) => {
                 *offset = jump_offset;
             }
@@ -379,11 +385,11 @@ impl Compiler {
     }
 
     fn emit_byte(&mut self, byte: OpCode, line: usize) {
-        self.function.chunk.write(byte, line);
+        self.current_chunk().write(byte, line);
     }
 
     fn make_constant(&mut self, value: Value) -> usize {
-        self.function.chunk.add_constant(value)
+        self.current_chunk().add_constant(value)
     }
 
     fn emit_constant(&mut self, value: Value, line: usize) {

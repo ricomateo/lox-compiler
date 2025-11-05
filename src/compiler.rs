@@ -50,6 +50,19 @@ impl Compiler {
         }
     }
 
+    pub fn with_enclosing(compiler: &Compiler) -> Self {
+        // TODO: check if it is correct to copy current_line and scope_depth from the enclosing
+        // Perhaps it is also necessary to copy constants?
+        Self {
+            function: Function::default(),
+            function_type: FunctionType::Function,
+            current_line: compiler.current_line,
+            locals: Vec::new(),
+            scope_depth: compiler.scope_depth,
+            constant_identifiers: Vec::new(),
+        }
+    }
+
     pub fn compile(
         &mut self,
         declarations: &Vec<Declaration>,
@@ -195,12 +208,16 @@ impl Compiler {
                 parameters,
                 body,
             }) => {
-                let mut compiler = Compiler::new();
-                // the body is already a block so there is no need to begin a scope here,
+                let mut compiler = Compiler::with_enclosing(self);
+                compiler.begin_scope();
+                for param in parameters {
+                    compiler.declare_variable(param.clone())?;
+                }
                 compiler.compile_declaration(body)?;
+                compiler.end_scope();
                 compiler.end_compiler();
-                let function = compiler.function;
-
+                let mut function = compiler.function;
+                function.name = name.clone();
                 let constant_index = self.make_constant(Value::Function(function));
                 self.emit_byte(OpCode::Constant(constant_index), self.current_line);
 

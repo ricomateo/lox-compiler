@@ -316,6 +316,14 @@ impl Compiler {
                     _ => unreachable!(),
                 }
             }
+            Expr::Call { arguments } => {
+                // Each argument expression generates code that leaves its value on the stack in preparation for the call
+                for arg in arguments {
+                    self.compile_expr(arg)?;
+                }
+                let arg_count = arguments.len();
+                self.emit_byte(OpCode::Call(arg_count), self.current_line);
+            }
         }
         Ok(())
     }

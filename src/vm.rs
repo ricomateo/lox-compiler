@@ -251,6 +251,7 @@ impl Vm {
                     let frame = self.frames.last_mut().unwrap();
                     frame.instruction_pointer -= offset;
                 }
+                OpCode::Call(arg_count) => todo!(),
             }
         }
     }

@@ -28,6 +28,7 @@ pub enum OpCode {
     Jump(usize),
     JumpIfFalse(usize),
     Loop(usize),
+    Call(usize),
     Return,
 }
 
@@ -120,6 +121,7 @@ impl Chunk {
                 self.jump_instruction("OP_JUMP_IF_FALSE", *jump_offset, offset)
             }
             OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset),
+            OpCode::Call(_arg_count) => self.simple_instruction("OP_CALL", offset),
         }
     }
 

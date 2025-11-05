@@ -121,7 +121,7 @@ impl Chunk {
                 self.jump_instruction("OP_JUMP_IF_FALSE", *jump_offset, offset)
             }
             OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset),
-            OpCode::Call(_arg_count) => self.simple_instruction("OP_CALL", offset),
+            OpCode::Call(arg_count) => self.byte_instruction("OP_CALL", offset, *arg_count),
         }
     }
 

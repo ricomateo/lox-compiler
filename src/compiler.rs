@@ -195,7 +195,18 @@ impl Compiler {
                 parameters,
                 body,
             }) => {
-                // TODO: Implement function compilation
+                let mut compiler = Compiler::new();
+                // the body is already a block so there is no need to begin a scope here,
+                compiler.compile_declaration(body)?;
+                compiler.end_compiler();
+                let function = compiler.function;
+
+                let constant_index = self.make_constant(Value::Function(function));
+                self.emit_byte(OpCode::Constant(constant_index), self.current_line);
+
+                // TODO: check this
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
             }
         }
         Ok(())

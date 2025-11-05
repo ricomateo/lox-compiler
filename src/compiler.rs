@@ -316,7 +316,11 @@ impl Compiler {
                     _ => unreachable!(),
                 }
             }
-            Expr::Call { arguments } => {
+            Expr::Call {
+                function_identifier,
+                arguments,
+            } => {
+                self.compile_expr(&function_identifier)?;
                 // Each argument expression generates code that leaves its value on the stack in preparation for the call
                 for arg in arguments {
                     self.compile_expr(arg)?;

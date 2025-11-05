@@ -399,8 +399,7 @@ impl Parser {
         })
     }
 
-    fn call(&mut self, _name: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
-        // TODO: check if we should use the _name here
+    fn call(&mut self, function: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
         let mut arguments = Vec::new();
         if !self.check(TokenType::RightParen) {
             loop {
@@ -412,7 +411,10 @@ impl Parser {
             }
         }
         self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
-        Ok(Expr::Call { arguments })
+        Ok(Expr::Call {
+            function_identifier: Box::new(function),
+            arguments,
+        })
     }
 
     fn grouping(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {

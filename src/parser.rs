@@ -109,8 +109,6 @@ impl Parser {
     }
 
     fn fun_declaration(&mut self) -> Result<Declaration, ParseError> {
-        self.consume(TokenType::Fun, "Expect 'fun' keyword.")?;
-
         let name = self.parse_variable("Expect function name.")?.lexeme.clone();
 
         self.consume(TokenType::LeftParen, "Expect '(' after function name.")?;

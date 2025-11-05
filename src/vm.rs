@@ -251,7 +251,11 @@ impl Vm {
                     let frame = self.frames.last_mut().unwrap();
                     frame.instruction_pointer -= offset;
                 }
-                OpCode::Call(arg_count) => todo!(),
+                OpCode::Call(arg_count) => {
+                    // Add a new frame
+                    let callee = self.peek(arg_count).unwrap().clone();
+                    self.call_value(callee, arg_count)?;
+                }
             }
         }
     }
@@ -295,6 +299,27 @@ impl Vm {
         } else {
             let idx = self.stack.len() - 1 - distance;
             self.stack.get(idx)
+        }
+    }
+
+    fn call(&mut self, function: Function, arg_count: usize) {
+        let stack_top = self.stack.len() - 1;
+        let slot_index = stack_top - arg_count - 1;
+        let frame = CallFrame {
+            function,
+            instruction_pointer: 0,
+            slot_index,
+        };
+        self.frames.push(frame);
+    }
+
+    fn call_value(&mut self, callee: Value, arg_count: usize) -> Result<(), VmError> {
+        match callee {
+            Value::Function(function) => {
+                self.call(function, arg_count);
+                Ok(())
+            }
+            _ => self.runtime_error("Can only call functions and classes."),
         }
     }
 

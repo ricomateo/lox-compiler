@@ -399,6 +399,22 @@ impl Parser {
         })
     }
 
+    fn call(&mut self, _name: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
+        // TODO: check if we should use the _name here
+        let mut arguments = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                let arg = self.expression()?;
+                arguments.push(arg);
+                if !self.matches(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
+        Ok(Expr::Call { arguments })
+    }
+
     fn grouping(&mut self, _can_assign: bool) -> Result<Expr, ParseError> {
         let expr = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after expression.")?;
@@ -539,7 +555,9 @@ impl ParseRule {
 
 fn get_rule(token_type: TokenType) -> ParseRule {
     match token_type {
-        TokenType::LeftParen => ParseRule::new(Some(Parser::grouping), None, Precedence::None),
+        TokenType::LeftParen => {
+            ParseRule::new(Some(Parser::grouping), Some(Parser::call), Precedence::Call)
+        }
         TokenType::Minus => {
             ParseRule::new(Some(Parser::unary), Some(Parser::binary), Precedence::Term)
         }

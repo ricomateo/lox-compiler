@@ -27,6 +27,9 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
+    Call {
+        arguments: Vec<Expr>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]

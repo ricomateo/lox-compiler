@@ -6,6 +6,7 @@ use crate::{
 };
 
 const STACK_MAX: usize = 256;
+const FRAMES_MAX: usize = 64;
 
 #[derive(Debug)]
 pub struct Vm {
@@ -302,23 +303,31 @@ impl Vm {
         }
     }
 
-    fn call(&mut self, function: Function, arg_count: usize) {
+    fn call(&mut self, function: Function, arg_count: usize) -> Result<(), VmError> {
+        if arg_count != function.arity {
+            self.runtime_error(&format!(
+                "Expected {} arguments but got {}.",
+                function.arity, arg_count,
+            ))?;
+        }
+        if self.frames.len() == FRAMES_MAX {
+            self.runtime_error("Stack overflow.")?;
+        }
+
         let stack_top = self.stack.len() - 1;
-        let slot_index = stack_top - arg_count - 1;
+        let slot_index = stack_top - arg_count;
         let frame = CallFrame {
             function,
             instruction_pointer: 0,
             slot_index,
         };
         self.frames.push(frame);
+        Ok(())
     }
 
     fn call_value(&mut self, callee: Value, arg_count: usize) -> Result<(), VmError> {
         match callee {
-            Value::Function(function) => {
-                self.call(function, arg_count);
-                Ok(())
-            }
+            Value::Function(function) => self.call(function, arg_count),
             _ => self.runtime_error("Can only call functions and classes."),
         }
     }

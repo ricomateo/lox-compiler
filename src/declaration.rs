@@ -84,6 +84,13 @@ impl Declaration {
             line,
         }
     }
+
+    pub fn return_statement(result: Option<Expr>, line: usize) -> Self {
+        Self {
+            inner: DeclarationKind::Statement(Statement::ReturnStatement { result }),
+            line,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -119,5 +126,8 @@ pub enum Statement {
         name: String,
         parameters: Vec<String>,
         body: Box<Declaration>,
+    },
+    ReturnStatement {
+        result: Option<Expr>,
     },
 }

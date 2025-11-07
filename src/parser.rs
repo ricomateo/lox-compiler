@@ -101,6 +101,8 @@ impl Parser {
             return self.block();
         } else if self.matches(TokenType::If) {
             self.if_statement()
+        } else if self.matches(TokenType::Return) {
+            return self.return_statement();
         } else if self.matches(TokenType::While) {
             self.while_statement()
         } else {
@@ -304,6 +306,18 @@ impl Parser {
         let line = self.previous_token_line();
         let declaration = Declaration::statement(Statement::PrintStatement(expr), line);
         Ok(declaration)
+    }
+
+    fn return_statement(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
+        if self.matches(TokenType::Semicolon) {
+            let result = None;
+            Ok(Declaration::return_statement(result, line))
+        } else {
+            let result = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+            Ok(Declaration::return_statement(Some(result), line))
+        }
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) -> Result<Expr, ParseError> {

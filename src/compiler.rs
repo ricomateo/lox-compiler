@@ -252,12 +252,12 @@ impl Compiler {
                     self.emit_byte(OpCode::GetLocal(local_index), self.current_line);
                 } else {
                     // If the variable does not exist as local nor global, then it is undefined
-                    if !self.global_variable_defined(name) {
-                        return Err(CompilationError::UndefinedVariable(
-                            name.clone(),
-                            self.current_line,
-                        ));
-                    }
+                    // if !self.global_variable_defined(name) {
+                    //     return Err(CompilationError::UndefinedVariable(
+                    //         name.clone(),
+                    //         self.current_line,
+                    //     ));
+                    // }
                     let constant_index = self.identifier_constant(name.clone());
                     self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
                 }
@@ -269,13 +269,12 @@ impl Compiler {
                     self.emit_byte(OpCode::SetLocal(local_index), self.current_line);
                 } else {
                     // If the variable does not exist as local nor global, then it is undefined
-                    if !self.global_variable_defined(name) {
-                        return Err(CompilationError::UndefinedVariable(
-                            name.clone(),
-                            self.current_line,
-                        ));
-                    }
-
+                    // if !self.global_variable_defined(name) {
+                    //     return Err(CompilationError::UndefinedVariable(
+                    //         name.clone(),
+                    //         self.current_line,
+                    //     ));
+                    // }
                     let constant_index = self.identifier_constant(name.clone());
                     self.define_variable(constant_index);
                 }
@@ -445,6 +444,7 @@ impl Compiler {
     }
 
     fn end_compiler(&mut self) {
+        self.emit_byte(OpCode::Nil, self.current_line);
         self.emit_byte(OpCode::Return, self.current_line);
     }
 

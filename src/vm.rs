@@ -106,7 +106,18 @@ impl Vm {
                     }
                 }
                 OpCode::Return => {
-                    return Ok(());
+                    // Pop return value
+                    let result = self.stack.pop().unwrap();
+                    // Pop the returning function callframe
+                    let frame = self.frames.pop().unwrap();
+                    // If there are no remaining callframes, we finished execution
+                    if self.frames.is_empty() {
+                        self.stack.pop();
+                        return Ok(());
+                    }
+                    // Discard all of the slots the callee was using for its parameters and local variables
+                    self.stack = self.stack.drain(frame.slot_index..).collect();
+                    self.stack.push(result);
                 }
                 // TODO: remove unwraps
                 OpCode::Add => {
@@ -334,6 +345,18 @@ impl Vm {
 
     fn runtime_error(&mut self, message: &str) -> Result<(), VmError> {
         eprintln!("Runtime error: {message}");
+
+        // Print the stack trace from top to bottom
+        for frame in self.frames.iter().rev() {
+            let function = &frame.function;
+            let line = function.chunk.line_at(frame.instruction_pointer);
+            if function.name == "" {
+                eprint!("[line {line}] in script");
+            } else {
+                eprint!("[line {line}] in {}()", function.name);
+            }
+        }
+
         self.stack.clear();
         Err(VmError::RuntimeError)
     }

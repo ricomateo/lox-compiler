@@ -111,6 +111,7 @@ impl Parser {
     }
 
     fn fun_declaration(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
         let name = self.parse_variable("Expect function name.")?.lexeme.clone();
 
         self.consume(TokenType::LeftParen, "Expect '(' after function name.")?;
@@ -135,7 +136,6 @@ impl Parser {
         self.consume(TokenType::LeftBrace, "Expect '{' before function body.")?;
         let body = Box::new(self.block()?);
 
-        let line = self.previous_token_line();
         let declaration = Declaration::function_declaration(name, parameters, body, line);
         Ok(declaration)
     }

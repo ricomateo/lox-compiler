@@ -29,6 +29,7 @@ pub struct Local {
     pub depth: usize,
 }
 
+#[derive(PartialEq)]
 pub enum FunctionType {
     /// Function body code
     Function,
@@ -218,12 +219,26 @@ impl Compiler {
                 compiler.end_compiler();
                 let mut function = compiler.function;
                 function.name = name.clone();
+                function.arity = parameters.len();
                 let constant_index = self.make_constant(Value::Function(function));
                 self.emit_byte(OpCode::Constant(constant_index), self.current_line);
 
                 // TODO: check this
                 let constant_index = self.identifier_constant(name.clone());
                 self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
+            }
+            DeclarationKind::Statement(Statement::ReturnStatement { result }) => {
+                if self.function_type == FunctionType::Script {
+                    return Err(CompilationError::ReturnStatementInTopLevelCode(
+                        self.current_line,
+                    ));
+                }
+                if let Some(result) = result {
+                    self.compile_expr(result)?;
+                } else {
+                    self.emit_byte(OpCode::Nil, self.current_line);
+                }
+                self.emit_byte(OpCode::Return, self.current_line);
             }
         }
         Ok(())
@@ -536,6 +551,8 @@ pub enum CompilationError {
     DuplicateLocalVariable(String),
     #[error("Undefined variable: '{0}' at line {1}")]
     UndefinedVariable(String, usize),
+    #[error("Cannot return from top level code (line {0})")]
+    ReturnStatementInTopLevelCode(usize),
 }
 
 #[cfg(test)]

@@ -238,11 +238,15 @@ impl Vm {
                     self.globals.insert(name, new_value);
                 }
                 OpCode::GetLocal(slot) => {
+                    let frame = self.frames.last().unwrap();
+                    let slot = frame.slot_index + slot;
                     self.stack.push(self.stack[slot].clone());
                 }
                 OpCode::SetLocal(slot) => {
                     // Takes the assigned value from the top of the stack
                     // and stores it in the stack slot corresponding to the local variable
+                    let frame = self.frames.last().unwrap();
+                    let slot = frame.slot_index + slot;
                     self.stack[slot] = self.peek(0).unwrap().clone();
                 }
                 OpCode::Jump(offset) => {
@@ -325,7 +329,7 @@ impl Vm {
             self.runtime_error("Stack overflow.")?;
         }
 
-        let stack_top = self.stack.len() - 1;
+        let stack_top = self.stack.len();
         let slot_index = stack_top - arg_count;
         let frame = CallFrame {
             function,

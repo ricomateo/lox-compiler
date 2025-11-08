@@ -2,6 +2,7 @@ pub mod chunk;
 pub mod compiler;
 pub mod declaration;
 pub mod expr;
+pub mod native;
 pub mod parser;
 pub mod rlox;
 pub mod scanner;

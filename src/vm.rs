@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::{
     chunk::{Chunk, OpCode},
-    value::{Function, Value},
+    native::clock_native,
+    value::{Function, NativeFunction, Value},
 };
 
 const STACK_MAX: usize = 256;
@@ -44,7 +45,13 @@ impl Vm {
         }
     }
 
+    /// Native function definitions go here
+    fn define_native_functions(&mut self) {
+        self.define_native("clock", clock_native);
+    }
+
     pub fn run(&mut self) -> Result<(), VmError> {
+        self.define_native_functions();
         // Fix: borrow the frame inside the loop in short scopes right where it’s used.
 
         // let frame_count = self.frames.len();
@@ -304,6 +311,9 @@ impl Vm {
                 }
                 println!("<fn {}>", function.name);
             }
+            Value::NativeFunction(_) => {
+                println!("<native fn>");
+            }
         }
     }
 
@@ -344,6 +354,15 @@ impl Vm {
     fn call_value(&mut self, callee: Value, arg_count: usize) -> Result<(), VmError> {
         match callee {
             Value::Function(function) => self.call(function, arg_count),
+            Value::NativeFunction(native_function) => {
+                let arg_starting_index = self.stack.len() - arg_count;
+                let args = self.stack[arg_starting_index..].into();
+                let result: Value = native_function(arg_count, args);
+                // Discard the native function arguments from the stack
+                self.stack = self.stack[..arg_starting_index].into();
+                self.stack.push(result);
+                Ok(())
+            }
             _ => self.runtime_error("Can only call functions and classes."),
         }
     }
@@ -364,6 +383,11 @@ impl Vm {
 
         self.stack.clear();
         Err(VmError::RuntimeError)
+    }
+
+    fn define_native(&mut self, name: &str, function: NativeFunction) {
+        self.globals
+            .insert(name.to_string(), Value::NativeFunction(function));
     }
 
     /// In the book, the BINARY_OP macro checks operand types with peek(distance) before popping the values.
@@ -445,6 +469,7 @@ impl Vm {
                 Value::Nil => print!("[ nil ]"),
                 Value::String(string) => print!("[ \"{string}\" ]"),
                 Value::Function(function) => print!("[ <fn {}> ]", function.name),
+                Value::NativeFunction(_) => print!("[ <native fn> ]",),
             }
         }
         println!("");

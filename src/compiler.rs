@@ -60,7 +60,7 @@ impl Compiler {
             current_line: compiler.current_line,
             locals: Vec::new(),
             scope_depth: compiler.scope_depth,
-            constant_identifiers: Vec::new(),
+            constant_identifiers: compiler.constant_identifiers.clone(),
         }
     }
 

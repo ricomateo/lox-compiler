@@ -786,4 +786,103 @@ mod tests {
         let expected_value = Some(&Value::Number(0.0));
         assert_eq!(vm.globals.get("global"), expected_value);
     }
+
+    #[test]
+    fn test_function_return_value() {
+        let source = "
+            var global = 0;
+            fun foo() {
+                return 1;
+            }
+            global = foo();
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_function_modify_global_variable() {
+        let source = "
+            var global = 0;
+            fun foo() {
+                global = 1;
+            }
+            foo();
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_can_call_functions_from_functions() {
+        let source = "
+            var global = 0;
+            fun foo() {
+                global = 1;
+            }
+
+            fun bar() {
+                foo();
+            }
+            bar();
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_function_with_parameters() {
+        let source = "
+            var global = 0;
+            fun sum(a, b) {
+                return a + b;
+            }
+
+            global = sum(2, 3);
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(5.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_recursive_function() {
+        let source = "
+            var global = 0;
+            fun factorial(n) {
+                if (n == 0) {
+                    return 1;
+                }
+                return n * factorial(n - 1);
+            }
+
+            global = factorial(6);
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(720.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
 }

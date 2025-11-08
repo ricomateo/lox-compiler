@@ -210,6 +210,10 @@ impl Compiler {
                 body,
             }) => {
                 let mut compiler = Compiler::with_enclosing(self);
+                // Set the function name as an identifier so that it allows recursion without UndefinedVariableError
+                let constant_index = compiler.identifier_constant(name.clone());
+                compiler.emit_byte(OpCode::Constant(constant_index), compiler.current_line);
+
                 compiler.begin_scope();
                 for param in parameters {
                     compiler.declare_variable(param.clone())?;
@@ -267,12 +271,12 @@ impl Compiler {
                     self.emit_byte(OpCode::GetLocal(local_index), self.current_line);
                 } else {
                     // If the variable does not exist as local nor global, then it is undefined
-                    // if !self.global_variable_defined(name) {
-                    //     return Err(CompilationError::UndefinedVariable(
-                    //         name.clone(),
-                    //         self.current_line,
-                    //     ));
-                    // }
+                    if !self.global_variable_defined(name) {
+                        return Err(CompilationError::UndefinedVariable(
+                            name.clone(),
+                            self.current_line,
+                        ));
+                    }
                     let constant_index = self.identifier_constant(name.clone());
                     self.emit_byte(OpCode::GetGlobal(constant_index), self.current_line);
                 }
@@ -284,12 +288,12 @@ impl Compiler {
                     self.emit_byte(OpCode::SetLocal(local_index), self.current_line);
                 } else {
                     // If the variable does not exist as local nor global, then it is undefined
-                    // if !self.global_variable_defined(name) {
-                    //     return Err(CompilationError::UndefinedVariable(
-                    //         name.clone(),
-                    //         self.current_line,
-                    //     ));
-                    // }
+                    if !self.global_variable_defined(name) {
+                        return Err(CompilationError::UndefinedVariable(
+                            name.clone(),
+                            self.current_line,
+                        ));
+                    }
                     let constant_index = self.identifier_constant(name.clone());
                     self.define_variable(constant_index);
                 }

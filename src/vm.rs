@@ -119,7 +119,7 @@ impl Vm {
                     let frame = self.frames.pop().unwrap();
                     // If there are no remaining callframes, we finished execution
                     if self.frames.is_empty() {
-                        self.stack.pop();
+                        self.stack.push(result);
                         return Ok(());
                     }
                     let new_stack_top = frame.slot_index - 1;

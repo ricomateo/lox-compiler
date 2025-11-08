@@ -459,7 +459,6 @@ impl Compiler {
     }
 
     fn end_compiler(&mut self) {
-        self.emit_byte(OpCode::Nil, self.current_line);
         self.emit_byte(OpCode::Return, self.current_line);
     }
 

@@ -115,8 +115,9 @@ impl Vm {
                         self.stack.pop();
                         return Ok(());
                     }
+                    let new_stack_top = frame.slot_index - 1;
                     // Discard all of the slots the callee was using for its parameters and local variables
-                    self.stack = self.stack.drain(frame.slot_index..).collect();
+                    self.stack = self.stack[..new_stack_top].into();
                     self.stack.push(result);
                 }
                 // TODO: remove unwraps

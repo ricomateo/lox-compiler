@@ -84,7 +84,9 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Declaration, ParseError> {
-        if self.matches(TokenType::Var) {
+        if self.matches(TokenType::Fun) {
+            return self.fun_declaration();
+        } else if self.matches(TokenType::Var) {
             return self.var_declaration();
         }
         self.statement()
@@ -99,11 +101,43 @@ impl Parser {
             return self.block();
         } else if self.matches(TokenType::If) {
             self.if_statement()
+        } else if self.matches(TokenType::Return) {
+            return self.return_statement();
         } else if self.matches(TokenType::While) {
             self.while_statement()
         } else {
             return self.expression_statement();
         }
+    }
+
+    fn fun_declaration(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
+        let name = self.parse_variable("Expect function name.")?.lexeme.clone();
+
+        self.consume(TokenType::LeftParen, "Expect '(' after function name.")?;
+
+        let mut parameters = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                if parameters.len() >= 255 {
+                    self.error("Cannot have more than 255 parameters.");
+                }
+                let param_token = self.parse_variable("Expect parameter name.")?;
+                parameters.push(param_token.lexeme.clone());
+
+                if !self.matches(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+
+        self.consume(TokenType::RightParen, "Expect ')' after parameters.")?;
+
+        self.consume(TokenType::LeftBrace, "Expect '{' before function body.")?;
+        let body = Box::new(self.block()?);
+
+        let declaration = Declaration::function_declaration(name, parameters, body, line);
+        Ok(declaration)
     }
 
     fn while_statement(&mut self) -> Result<Declaration, ParseError> {
@@ -274,6 +308,18 @@ impl Parser {
         Ok(declaration)
     }
 
+    fn return_statement(&mut self) -> Result<Declaration, ParseError> {
+        let line = self.previous_token_line();
+        if self.matches(TokenType::Semicolon) {
+            let result = None;
+            Ok(Declaration::return_statement(result, line))
+        } else {
+            let result = self.expression()?;
+            self.consume(TokenType::Semicolon, "Expect ';' after return value.")?;
+            Ok(Declaration::return_statement(Some(result), line))
+        }
+    }
+
     fn parse_precedence(&mut self, precedence: Precedence) -> Result<Expr, ParseError> {
         self.advance();
 
@@ -364,6 +410,24 @@ impl Parser {
             left: Box::new(left),
             operator,
             right: Box::new(right),
+        })
+    }
+
+    fn call(&mut self, function: Expr, _can_assign: bool) -> Result<Expr, ParseError> {
+        let mut arguments = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                let arg = self.expression()?;
+                arguments.push(arg);
+                if !self.matches(TokenType::Comma) {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after arguments.")?;
+        Ok(Expr::Call {
+            function_identifier: Box::new(function),
+            arguments,
         })
     }
 
@@ -507,7 +571,9 @@ impl ParseRule {
 
 fn get_rule(token_type: TokenType) -> ParseRule {
     match token_type {
-        TokenType::LeftParen => ParseRule::new(Some(Parser::grouping), None, Precedence::None),
+        TokenType::LeftParen => {
+            ParseRule::new(Some(Parser::grouping), Some(Parser::call), Precedence::Call)
+        }
         TokenType::Minus => {
             ParseRule::new(Some(Parser::unary), Some(Parser::binary), Precedence::Term)
         }

@@ -1,17 +1,21 @@
 use std::usize;
 
 use crate::{
-    chunk::{Chunk, Object, OpCode, Value},
+    chunk::OpCode,
     declaration::{Declaration, DeclarationKind, Statement},
     expr::Expr,
+    value::{Function, Value},
 };
+
+use crate::chunk::Chunk;
 
 use crate::expr::Literal;
 use crate::scanner::Token;
 use crate::scanner::TokenType;
 
 pub struct Compiler {
-    chunk: Chunk,
+    function: Function,
+    function_type: FunctionType,
     current_line: usize,
     locals: Vec<Local>,
     scope_depth: usize,
@@ -19,28 +23,56 @@ pub struct Compiler {
     constant_identifiers: Vec<String>,
 }
 
+#[derive(Default)]
 pub struct Local {
-    name: String,
+    pub name: String,
     pub depth: usize,
+}
+
+#[derive(PartialEq)]
+pub enum FunctionType {
+    /// Function body code
+    Function,
+    /// Top-level code
+    Script,
 }
 
 impl Compiler {
     pub fn new() -> Self {
+        // Claims the first stack slot for the VM’s internal use
+        let local = Local::default();
         Self {
-            chunk: Chunk::new(),
+            function: Function::default(),
+            function_type: FunctionType::Script,
             current_line: 0,
-            locals: Vec::new(),
+            locals: vec![local],
             scope_depth: 0,
             constant_identifiers: Vec::new(),
         }
     }
 
-    pub fn compile(&mut self, declarations: &Vec<Declaration>) -> Result<Chunk, CompilationError> {
+    pub fn with_enclosing(compiler: &Compiler) -> Self {
+        // TODO: check if it is correct to copy current_line and scope_depth from the enclosing
+        // Perhaps it is also necessary to copy constants?
+        Self {
+            function: Function::default(),
+            function_type: FunctionType::Function,
+            current_line: compiler.current_line,
+            locals: Vec::new(),
+            scope_depth: compiler.scope_depth,
+            constant_identifiers: compiler.constant_identifiers.clone(),
+        }
+    }
+
+    pub fn compile(
+        &mut self,
+        declarations: &Vec<Declaration>,
+    ) -> Result<Function, CompilationError> {
         for declaration in declarations {
             self.compile_declaration(declaration)?;
         }
         self.end_compiler();
-        Ok(self.chunk.clone())
+        Ok(self.function.clone())
     }
 
     fn compile_declaration(&mut self, declaration: &Declaration) -> Result<(), CompilationError> {
@@ -109,7 +141,7 @@ impl Compiler {
             }
             DeclarationKind::Statement(Statement::WhileStatement { condition, body }) => {
                 // Remember the beginning of the loop
-                let loop_start = self.chunk.chunk.len();
+                let loop_start = self.current_chunk().chunk.len();
 
                 self.compile_expr(condition)?;
 
@@ -142,7 +174,7 @@ impl Compiler {
                 if let Some(initializer_clause) = *initializer_clause.clone() {
                     self.compile_declaration(&initializer_clause)?;
                 }
-                let mut loop_start = self.chunk.chunk.len();
+                let mut loop_start = self.current_chunk().chunk.len();
                 let mut exit_jump = None;
 
                 if let Some(condition_clause) = condition_clause {
@@ -155,7 +187,7 @@ impl Compiler {
                     // The increment clause must be executed at the end of each loop,
                     // thats why here we jump right to the body
                     let body_jump = self.emit_jump(OpCode::Jump(usize::MAX));
-                    let increment_start = self.chunk.chunk.len();
+                    let increment_start = self.current_chunk().chunk.len();
                     self.compile_expr(increment_clause)?;
                     self.emit_byte(OpCode::Pop, self.current_line);
                     self.emit_loop(loop_start);
@@ -171,6 +203,46 @@ impl Compiler {
                     self.emit_byte(OpCode::Pop, self.current_line);
                 }
                 self.end_scope();
+            }
+            DeclarationKind::Statement(Statement::FunctionDeclaration {
+                name,
+                parameters,
+                body,
+            }) => {
+                let mut compiler = Compiler::with_enclosing(self);
+                // Set the function name as an identifier so that it allows recursion without UndefinedVariableError
+                let constant_index = compiler.identifier_constant(name.clone());
+                compiler.emit_byte(OpCode::Constant(constant_index), compiler.current_line);
+
+                compiler.begin_scope();
+                for param in parameters {
+                    compiler.declare_variable(param.clone())?;
+                }
+                compiler.compile_declaration(body)?;
+                compiler.end_scope();
+                compiler.end_compiler();
+                let mut function = compiler.function;
+                function.name = name.clone();
+                function.arity = parameters.len();
+                let constant_index = self.make_constant(Value::Function(function));
+                self.emit_byte(OpCode::Constant(constant_index), self.current_line);
+
+                // TODO: check this
+                let constant_index = self.identifier_constant(name.clone());
+                self.emit_byte(OpCode::DefineGlobal(constant_index), self.current_line);
+            }
+            DeclarationKind::Statement(Statement::ReturnStatement { result }) => {
+                if self.function_type == FunctionType::Script {
+                    return Err(CompilationError::ReturnStatementInTopLevelCode(
+                        self.current_line,
+                    ));
+                }
+                if let Some(result) = result {
+                    self.compile_expr(result)?;
+                } else {
+                    self.emit_byte(OpCode::Nil, self.current_line);
+                }
+                self.emit_byte(OpCode::Return, self.current_line);
             }
         }
         Ok(())
@@ -222,7 +294,6 @@ impl Compiler {
                             self.current_line,
                         ));
                     }
-
                     let constant_index = self.identifier_constant(name.clone());
                     self.define_variable(constant_index);
                 }
@@ -262,6 +333,18 @@ impl Compiler {
                     }
                     _ => unreachable!(),
                 }
+            }
+            Expr::Call {
+                function_identifier,
+                arguments,
+            } => {
+                self.compile_expr(&function_identifier)?;
+                // Each argument expression generates code that leaves its value on the stack in preparation for the call
+                for arg in arguments {
+                    self.compile_expr(arg)?;
+                }
+                let arg_count = arguments.len();
+                self.emit_byte(OpCode::Call(arg_count), self.current_line);
             }
         }
         Ok(())
@@ -310,24 +393,28 @@ impl Compiler {
 
     // ---------- Helpers ----------
 
+    fn current_chunk(&mut self) -> &mut Chunk {
+        &mut self.function.chunk
+    }
+
     // Emit a loop instruction to jump back to the given position (the index in the chunk where the loop starts)
     fn emit_loop(&mut self, loop_start: usize) {
-        let offset = self.chunk.chunk.len() - loop_start + 1;
+        let offset = self.current_chunk().chunk.len() - loop_start + 1;
         self.emit_byte(OpCode::Loop(offset), self.current_line);
     }
 
     // Emit a jump instruction with a placeholder offset
     // Returns the location of the jump instruction in the chunk
     fn emit_jump(&mut self, jump_opcode: OpCode) -> usize {
-        let offset = self.chunk.chunk.len();
+        let offset = self.current_chunk().chunk.len();
         self.emit_byte(jump_opcode, self.current_line);
         offset
     }
 
     fn patch_jump(&mut self, jump_pos: usize) {
-        let jump_offset = self.chunk.chunk.len() - jump_pos - 1;
+        let jump_offset = self.current_chunk().chunk.len() - jump_pos - 1;
 
-        match &mut self.chunk.chunk[jump_pos] {
+        match &mut self.current_chunk().chunk[jump_pos] {
             OpCode::Jump(offset) | OpCode::JumpIfFalse(offset) => {
                 *offset = jump_offset;
             }
@@ -363,11 +450,11 @@ impl Compiler {
     }
 
     fn emit_byte(&mut self, byte: OpCode, line: usize) {
-        self.chunk.write(byte, line);
+        self.current_chunk().write(byte, line);
     }
 
     fn make_constant(&mut self, value: Value) -> usize {
-        self.chunk.add_constant(value)
+        self.current_chunk().add_constant(value)
     }
 
     fn emit_constant(&mut self, value: Value, line: usize) {
@@ -383,7 +470,7 @@ impl Compiler {
         // Here we add the identifier in the constant_identifiers vec
         // This is then used to check whether the global variable exists
         self.constant_identifiers.push(name.clone());
-        self.make_constant(Value::Object(Object::String(name)))
+        self.make_constant(Value::String(name))
     }
 
     fn compile_binary(
@@ -455,7 +542,7 @@ impl Compiler {
             }
             Literal::String(string) => {
                 // TODO: set the right line here
-                self.emit_constant(Value::Object(Object::String(string.clone())), line);
+                self.emit_constant(Value::String(string.clone()), line);
             }
         }
     }
@@ -467,12 +554,14 @@ pub enum CompilationError {
     DuplicateLocalVariable(String),
     #[error("Undefined variable: '{0}' at line {1}")]
     UndefinedVariable(String, usize),
+    #[error("Cannot return from top level code (line {0})")]
+    ReturnStatementInTopLevelCode(usize),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::{Chunk, OpCode, Value};
+    use crate::chunk::{Chunk, OpCode};
     use crate::parser::Parser;
     use crate::scanner::Scanner;
 
@@ -482,7 +571,7 @@ mod tests {
     fn compile_source(source: String) -> Result<Chunk, CompilationError> {
         let tokens = Scanner::new(source).scan();
         let declarations = Parser::new(tokens).parse();
-        Compiler::new().compile(&declarations)
+        Compiler::new().compile(&declarations).map(|f| f.chunk)
     }
 
     /// Get the opcode at a specific index in the chunk
@@ -715,10 +804,7 @@ mod tests {
 
         // DEFINE_GLOBAL (with constant "a")
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
@@ -746,10 +832,7 @@ mod tests {
         assert_eq!(opcode_at(&chunk, 0), OpCode::Nil); // Check if first opcode is Nil
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
@@ -778,19 +861,13 @@ mod tests {
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected DefineGlobal opcode");
         }
 
         if let OpCode::GetGlobal(idx) = opcode_at(&chunk, 2) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         } else {
             panic!("Expected GetGlobal opcode");
         }
@@ -822,20 +899,14 @@ mod tests {
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(1.0)); // Check if constant value is 1.0
 
         if let OpCode::DefineGlobal(idx) = opcode_at(&chunk, 1) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         }
 
         assert!(matches!(opcode_at(&chunk, 2), OpCode::Constant(_))); // Check if third opcode is Constant
         assert_eq!(constant_value_at(&chunk, 2).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
         if let OpCode::SetGlobal(idx) = opcode_at(&chunk, 3) {
-            assert_eq!(
-                chunk.constant_at(idx),
-                Value::Object(Object::String("a".to_string()))
-            ); // Check if global variable is "a"
+            assert_eq!(chunk.constant_at(idx), Value::String("a".to_string())); // Check if global variable is "a"
         }
 
         assert_eq!(opcode_at(&chunk, 4), OpCode::Pop); // Check if fifth opcode is Pop
@@ -872,7 +943,7 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 0), OpCode::Constant(_))); // Check if first opcode is Constant
         assert_eq!(constant_value_at(&chunk, 0).unwrap(), Value::Number(42.0)); // Check if constant value is 42.0
 
-        assert_eq!(opcode_at(&chunk, 1), OpCode::GetLocal(0)); // Check if third opcode is GetLocal 0
+        assert_eq!(opcode_at(&chunk, 1), OpCode::GetLocal(1)); // Check if third opcode is GetLocal 0
 
         assert_eq!(opcode_at(&chunk, 2), OpCode::Print); // Check if fourth opcode is Print
 
@@ -914,7 +985,7 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
         assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
-        assert_eq!(opcode_at(&chunk, 2), OpCode::SetLocal(0)); // Check if third opcode is Set local variable 'a' at index 0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::SetLocal(1)); // Check if third opcode is Set local variable 'a' at index 0
 
         assert_eq!(opcode_at(&chunk, 3), OpCode::Pop); // Check if fourth opcode is Pop
 
@@ -968,11 +1039,11 @@ mod tests {
         assert!(matches!(opcode_at(&chunk, 1), OpCode::Constant(_))); // Check if second opcode is Constant
         assert_eq!(constant_value_at(&chunk, 1).unwrap(), Value::Number(2.0)); // Check if constant value is 2.0
 
-        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(0)); // Check if third opcode is Get local variable 'a' at index 0
+        assert_eq!(opcode_at(&chunk, 2), OpCode::GetLocal(1)); // Check if third opcode is Get local variable 'a' at index 0
 
         assert_eq!(opcode_at(&chunk, 3), OpCode::Print); // Check if fourth opcode is Print
 
-        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(1)); // Check if fifth opcode is Get local variable 'b' at index 1
+        assert_eq!(opcode_at(&chunk, 4), OpCode::GetLocal(2)); // Check if fifth opcode is Get local variable 'b' at index 1
 
         assert_eq!(opcode_at(&chunk, 5), OpCode::Print); // Check if sixth opcode is Print
 
@@ -1511,7 +1582,7 @@ mod tests {
             vec![
                 OpCode::Constant(0), // initializer clause
                 //
-                OpCode::GetLocal(0), // i  \
+                OpCode::GetLocal(1), // i  \
                 OpCode::Constant(1), // 5  | condition clause i < 5
                 OpCode::Less,        // <  /
                 //
@@ -1519,15 +1590,15 @@ mod tests {
                 OpCode::Pop,             // Pop condition clause
                 OpCode::Jump(6),         // Jump to the body
                 //
-                OpCode::GetLocal(0), //  \
+                OpCode::GetLocal(1), //  \
                 OpCode::Constant(2), //  | increment clause
                 OpCode::Add,         //  | i = i + 1
-                OpCode::SetLocal(0), //  /
+                OpCode::SetLocal(1), //  /
                 //
                 OpCode::Pop,      //
                 OpCode::Loop(12), // jump back to the loop start
                 //
-                OpCode::GetLocal(0), // body
+                OpCode::GetLocal(1), // body
                 OpCode::Print,       // print i;
                 //
                 OpCode::Loop(9), // jump to the increment clause
@@ -1549,6 +1620,24 @@ mod tests {
         let error = compile_source(source.to_string()).expect_err("Expected compilation error");
         let line = 5;
         let expected_error = CompilationError::UndefinedVariable("i".to_string(), line);
+        assert_eq!(error, expected_error);
+    }
+
+    #[test]
+    fn test_cannot_call_undefined_functions() {
+        let source = "sum();";
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 1;
+        let expected_error = CompilationError::UndefinedVariable("sum".to_string(), line);
+        assert_eq!(error, expected_error);
+    }
+
+    #[test]
+    fn test_cannot_return_from_top_level_code() {
+        let source = "return 10;";
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 1;
+        let expected_error = CompilationError::ReturnStatementInTopLevelCode(line);
         assert_eq!(error, expected_error);
     }
 }

@@ -1,15 +1,4 @@
-#[derive(Debug, Clone, PartialEq)]
-pub enum Value {
-    Number(f64),
-    Bool(bool),
-    Nil,
-    Object(Object),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Object {
-    String(String),
-}
+use crate::value::Value;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum OpCode {
@@ -39,10 +28,11 @@ pub enum OpCode {
     Jump(usize),
     JumpIfFalse(usize),
     Loop(usize),
+    Call(usize),
     Return,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Chunk {
     pub chunk: Vec<OpCode>,
     pub constants: Vec<Value>,
@@ -69,7 +59,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self, name: &str) {
-        println!("== {name} ==");
+        println!("== {} ==", if name.is_empty() { "script" } else { name });
         let count = self.chunk.len();
         let mut offset = 0;
         while offset < count {
@@ -130,6 +120,7 @@ impl Chunk {
             OpCode::JumpIfFalse(jump_offset) => {
                 self.jump_instruction("OP_JUMP_IF_FALSE", *jump_offset, offset, 1)
             }
+            OpCode::Call(arg_count) => self.byte_instruction("OP_CALL", offset, *arg_count),
             // TODO: Check jump instruction implementation
             OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset, -1),
         }
@@ -152,8 +143,14 @@ impl Chunk {
             Value::Number(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
             Value::Bool(v) => println!("{:<16} {:>4} '{}'", name, constant_index, v),
             Value::Nil => println!("{:<16} {:>4} 'nil'", name, constant_index),
-            Value::Object(Object::String(v)) => {
+            Value::String(v) => {
                 println!("{:<16} {:>4} '{}'", name, constant_index, v)
+            }
+            Value::Function(f) => {
+                println!("{:<16} {:>4} '<fn {}>'", name, constant_index, f.name)
+            }
+            Value::NativeFunction(_) => {
+                println!("'<native fn>'")
             }
         }
 

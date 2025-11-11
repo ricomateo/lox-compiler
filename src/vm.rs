@@ -1,35 +1,94 @@
 use std::collections::HashMap;
 
-use crate::chunk::{Chunk, Object, OpCode, Value};
+use crate::{
+    chunk::{Chunk, OpCode},
+    native::clock_native,
+    value::{Function, NativeFunction, Value},
+};
+
+const STACK_MAX: usize = 256;
+const FRAMES_MAX: usize = 64;
 
 #[derive(Debug)]
 pub struct Vm {
-    chunk: Chunk,
-    instruction_pointer: usize,
     stack: Vec<Value>,
+    frames: Vec<CallFrame>,
     pub globals: HashMap<String, Value>,
 }
 
+#[derive(Debug)]
+pub struct CallFrame {
+    pub function: Function,
+    instruction_pointer: usize,
+    // Points to the VM's value stack at the first slot this function can use
+    // TODO: consider using a reference to the stack (like &vm.stack[slot_index..])
+    slot_index: usize,
+}
+
 impl Vm {
-    pub fn new(chunk: Chunk) -> Self {
-        Self {
-            chunk,
+    pub fn new(function: Function) -> Self {
+        let frame = CallFrame {
+            function,
             instruction_pointer: 0,
-            stack: Vec::new(),
+            slot_index: 0,
+        };
+
+        let mut stack = Vec::with_capacity(STACK_MAX);
+        // TODO: Check this
+        // Initialize the stack with Nil value to avoid index out of bounds in tests
+        stack.push(Value::Nil);
+
+        Self {
+            stack,
+            frames: vec![frame],
             globals: HashMap::new(),
         }
     }
 
+    /// Native function definitions go here
+    fn define_native_functions(&mut self) {
+        self.define_native("clock", clock_native);
+    }
+
     pub fn run(&mut self) -> Result<(), VmError> {
+        self.define_native_functions();
+        // Fix: borrow the frame inside the loop in short scopes right where it’s used.
+
+        // let frame_count = self.frames.len();
+        // let frame = self.frames.get_mut(frame_count - 1).unwrap();
+
         loop {
             if std::env::var("DEBUG_TRACE").is_ok() {
                 self.debug_trace();
             };
-            let instruction = self.chunk.instruction_at(self.instruction_pointer);
-            self.instruction_pointer += 1;
+
+            let instruction = {
+                let frame = self.frames.last().unwrap();
+                frame
+                    .function
+                    .chunk
+                    .instruction_at(frame.instruction_pointer)
+            };
+
+            // let instruction = frame
+            //     .function
+            //     .chunk
+            //     .instruction_at(frame.instruction_pointer);
+
+            // frame.instruction_pointer += 1;
+
+            {
+                let frame = self.frames.last_mut().unwrap();
+                frame.instruction_pointer += 1;
+            }
+
             match instruction {
                 OpCode::Constant(constant_index) => {
-                    let constant = self.chunk.constant_at(constant_index);
+                    // let constant = frame.function.chunk.constant_at(constant_index);
+                    let constant = {
+                        let frame = self.frames.last().unwrap();
+                        frame.function.chunk.constant_at(constant_index)
+                    };
                     self.stack.push(constant);
                 }
                 OpCode::Negate => {
@@ -54,7 +113,19 @@ impl Vm {
                     }
                 }
                 OpCode::Return => {
-                    return Ok(());
+                    // Pop return value
+                    let result = self.stack.pop().unwrap();
+                    // Pop the returning function callframe
+                    let frame = self.frames.pop().unwrap();
+                    // If there are no remaining callframes, we finished execution
+                    if self.frames.is_empty() {
+                        self.stack.push(result);
+                        return Ok(());
+                    }
+                    let new_stack_top = frame.slot_index - 1;
+                    // Discard all of the slots the callee was using for its parameters and local variables
+                    self.stack = self.stack[..new_stack_top].into();
+                    self.stack.push(result);
                 }
                 // TODO: remove unwraps
                 OpCode::Add => {
@@ -175,32 +246,51 @@ impl Vm {
                     self.globals.insert(name, new_value);
                 }
                 OpCode::GetLocal(slot) => {
+                    let frame = self.frames.last().unwrap();
+                    let slot = frame.slot_index + slot;
                     self.stack.push(self.stack[slot].clone());
                 }
                 OpCode::SetLocal(slot) => {
                     // Takes the assigned value from the top of the stack
                     // and stores it in the stack slot corresponding to the local variable
+                    let frame = self.frames.last().unwrap();
+                    let slot = frame.slot_index + slot;
                     self.stack[slot] = self.peek(0).unwrap().clone();
                 }
                 OpCode::Jump(offset) => {
-                    self.instruction_pointer += offset;
+                    // frame.instruction_pointer += offset;
+                    let frame = self.frames.last_mut().unwrap();
+                    frame.instruction_pointer += offset;
                 }
                 OpCode::JumpIfFalse(offset) => {
                     let condition = self.peek(0).unwrap();
                     if Self::is_falsey(&condition) {
-                        self.instruction_pointer += offset;
+                        // frame.instruction_pointer += offset;
+                        let frame = self.frames.last_mut().unwrap();
+                        frame.instruction_pointer += offset;
                     }
                 }
                 OpCode::Loop(offset) => {
-                    self.instruction_pointer -= offset;
+                    // frame.instruction_pointer -= offset;
+                    let frame = self.frames.last_mut().unwrap();
+                    frame.instruction_pointer -= offset;
+                }
+                OpCode::Call(arg_count) => {
+                    // Add a new frame
+                    let callee = self.peek(arg_count).unwrap().clone();
+                    self.call_value(callee, arg_count)?;
                 }
             }
         }
     }
 
+    fn current_chunk(&mut self) -> Chunk {
+        self.frames.last().unwrap().function.chunk.clone()
+    }
+
     fn get_variable_name(&mut self, constant_index: usize) -> Result<String, VmError> {
-        let constant = self.chunk.constant_at(constant_index as usize);
-        let Value::Object(Object::String(string)) = constant else {
+        let constant = self.current_chunk().constant_at(constant_index as usize);
+        let Value::String(string) = constant else {
             // TODO: refactor this
             eprintln!("Variable name must be a string.");
             return Err(VmError::RuntimeError);
@@ -213,7 +303,17 @@ impl Vm {
             Value::Number(number) => println!("{number}"),
             Value::Bool(bool) => println!("{bool}"),
             Value::Nil => println!("nil"),
-            Value::Object(Object::String(string)) => println!("{string}"),
+            Value::String(string) => println!("{string}"),
+            Value::Function(function) => {
+                if &function.name == "" {
+                    println!("<script>");
+                    return;
+                }
+                println!("<fn {}>", function.name);
+            }
+            Value::NativeFunction(_) => {
+                println!("<native fn>");
+            }
         }
     }
 
@@ -229,10 +329,65 @@ impl Vm {
         }
     }
 
+    fn call(&mut self, function: Function, arg_count: usize) -> Result<(), VmError> {
+        if arg_count != function.arity {
+            self.runtime_error(&format!(
+                "Expected {} arguments but got {}.",
+                function.arity, arg_count,
+            ))?;
+        }
+        if self.frames.len() == FRAMES_MAX {
+            self.runtime_error("Stack overflow.")?;
+        }
+
+        let stack_top = self.stack.len();
+        let slot_index = stack_top - arg_count;
+        let frame = CallFrame {
+            function,
+            instruction_pointer: 0,
+            slot_index,
+        };
+        self.frames.push(frame);
+        Ok(())
+    }
+
+    fn call_value(&mut self, callee: Value, arg_count: usize) -> Result<(), VmError> {
+        match callee {
+            Value::Function(function) => self.call(function, arg_count),
+            Value::NativeFunction(native_function) => {
+                let arg_starting_index = self.stack.len() - arg_count;
+                let args = self.stack[arg_starting_index..].into();
+                let result: Value = native_function(arg_count, args);
+                // Discard the native function arguments from the stack
+                self.stack = self.stack[..arg_starting_index].into();
+                self.stack.push(result);
+                Ok(())
+            }
+            _ => self.runtime_error("Can only call functions and classes."),
+        }
+    }
+
     fn runtime_error(&mut self, message: &str) -> Result<(), VmError> {
         eprintln!("Runtime error: {message}");
+
+        // Print the stack trace from top to bottom
+        for frame in self.frames.iter().rev() {
+            let function = &frame.function;
+            let line = function.chunk.line_at(frame.instruction_pointer);
+            if function.name == "" {
+                eprint!("[line {line}] in script");
+            } else {
+                eprint!("[line {line}] in {}()", function.name);
+            }
+        }
+
         self.stack.clear();
         Err(VmError::RuntimeError)
+    }
+
+    fn define_native(&mut self, name: &str, function: NativeFunction) {
+        self.globals
+            .insert(name.to_string(), Value::NativeFunction(function));
     }
 
     /// In the book, the BINARY_OP macro checks operand types with peek(distance) before popping the values.
@@ -273,7 +428,7 @@ impl Vm {
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
-            (Value::Object(Object::String(a)), Value::Object(Object::String(b))) => *a == *b,
+            (Value::String(a), Value::String(b)) => *a == *b,
             _ => false,
         }
     }
@@ -289,17 +444,16 @@ impl Vm {
     fn stack_operands_are_strings(&mut self) -> bool {
         let b = self.peek(0);
         let a = self.peek(1);
-        matches!(a, Some(Value::Object(Object::String(_))))
-            && matches!(b, Some(Value::Object(Object::String(_))))
+        matches!(a, Some(Value::String(_))) && matches!(b, Some(Value::String(_)))
     }
 
     fn concatenate_strings(&mut self) -> Result<(), VmError> {
         let b = self.stack.pop().unwrap();
         let a = self.stack.pop().unwrap();
-        let (Value::Object(Object::String(a)), Value::Object(Object::String(b))) = (a, b) else {
+        let (Value::String(a), Value::String(b)) = (a, b) else {
             return self.runtime_error("Operands must be strings.");
         };
-        let concatenated_string = Value::Object(Object::String(format!("{a}{b}")));
+        let concatenated_string = Value::String(format!("{a}{b}"));
         self.stack.push(concatenated_string);
         Ok(())
     }
@@ -313,11 +467,17 @@ impl Vm {
                 Value::Number(v) => print!("[ {v} ]"),
                 Value::Bool(v) => print!("[ {v} ]"),
                 Value::Nil => print!("[ nil ]"),
-                Value::Object(Object::String(string)) => print!("[ \"{string}\" ]"),
+                Value::String(string) => print!("[ \"{string}\" ]"),
+                Value::Function(function) => print!("[ <fn {}> ]", function.name),
+                Value::NativeFunction(_) => print!("[ <native fn> ]",),
             }
         }
         println!("");
-        self.chunk.disassemble_instruction(self.instruction_pointer);
+        let frame = self.frames.last().unwrap();
+        frame
+            .function
+            .chunk
+            .disassemble_instruction(frame.instruction_pointer);
     }
 }
 
@@ -331,7 +491,7 @@ pub enum VmError {
 mod tests {
     use super::*;
     use crate::{
-        chunk::{Chunk, OpCode, Value},
+        chunk::{Chunk, OpCode},
         compiler::Compiler,
         parser::Parser,
         scanner::Scanner,
@@ -339,8 +499,8 @@ mod tests {
 
     /// Creates and run a vm with the given chunk, checks its result is ok
     /// and returns the value at the top of the stack
-    fn run_chunk_and_return_stack_top(chunk: Chunk) -> Option<Value> {
-        let mut vm = Vm::new(chunk);
+    fn run_chunk_and_return_stack_top(function: Function) -> Option<Value> {
+        let mut vm = Vm::new(function);
         let result = vm.run();
         assert!(result.is_ok());
         vm.peek(0).cloned()
@@ -364,6 +524,14 @@ mod tests {
         chunk
     }
 
+    fn function_from_chunk(chunk: Chunk) -> Function {
+        Function {
+            arity: 0,
+            chunk,
+            name: "".into(),
+        }
+    }
+
     #[test]
     fn test_number_addition() {
         // Test 2 + 3 equals 5
@@ -371,8 +539,9 @@ mod tests {
         let b = Value::Number(3.0);
         let operator = OpCode::Add;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Number(5.0);
         assert_eq!(stack_top, expected_value);
     }
@@ -384,8 +553,9 @@ mod tests {
         let b = Value::Number(3.0);
         let operator = OpCode::Subtract;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Number(-1.0);
         assert_eq!(stack_top, expected_value);
     }
@@ -397,8 +567,9 @@ mod tests {
         let b = Value::Number(3.0);
         let operator = OpCode::Multiply;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Number(6.0);
         assert_eq!(stack_top, expected_value);
     }
@@ -410,22 +581,30 @@ mod tests {
         let b = Value::Number(4.0);
         let operator = OpCode::Divide;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Number(2.0);
         assert_eq!(stack_top, expected_value);
+    }
+
+    fn compile_source(source: String) -> Function {
+        let tokens = Scanner::new(source).scan();
+        let declarations = Parser::new(tokens).parse();
+        Compiler::new().compile(&declarations).unwrap()
     }
 
     #[test]
     fn test_string_concatenation() {
         // Test "hello" + "world" equals "helloworld"
-        let a = Value::Object(Object::String("hello".into()));
-        let b = Value::Object(Object::String("world".into()));
+        let a = Value::String("hello".into());
+        let b = Value::String("world".into());
         let operator = OpCode::Add;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
-        let expected_value = Value::Object(Object::String("helloworld".into()));
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
+        let expected_value = Value::String("helloworld".into());
         assert_eq!(stack_top, expected_value);
     }
 
@@ -436,8 +615,9 @@ mod tests {
         let b = Value::Number(1.0);
         let operator = OpCode::Greater;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
@@ -446,8 +626,9 @@ mod tests {
         let b = Value::Number(2.0);
         let operator = OpCode::Greater;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(false);
         assert_eq!(stack_top, expected_value);
     }
@@ -459,8 +640,9 @@ mod tests {
         let b = Value::Number(2.0);
         let operator = OpCode::Less;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
@@ -469,8 +651,9 @@ mod tests {
         let b = Value::Number(1.0);
         let operator = OpCode::Less;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(false);
         assert_eq!(stack_top, expected_value);
     }
@@ -482,8 +665,9 @@ mod tests {
         let b = Value::Number(2.0);
         let operator = OpCode::Equal;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
@@ -492,8 +676,9 @@ mod tests {
         let b = Value::Number(0.0);
         let operator = OpCode::Equal;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(false);
         assert_eq!(stack_top, expected_value);
     }
@@ -501,37 +686,33 @@ mod tests {
     #[test]
     fn test_strings_equal() {
         // Test "hello" equals "hello" returns true
-        let a = Value::Object(Object::String("hello".into()));
-        let b = Value::Object(Object::String("hello".into()));
+        let a = Value::String("hello".into());
+        let b = Value::String("hello".into());
         let operator = OpCode::Equal;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(true);
         assert_eq!(stack_top, expected_value);
 
         // Test "hello" equals "world" returns false
-        let a = Value::Object(Object::String("hello".into()));
-        let b = Value::Object(Object::String("world".into()));
+        let a = Value::String("hello".into());
+        let b = Value::String("world".into());
         let operator = OpCode::Equal;
         let chunk = chunk_with_operands_and_operator(a, b, operator);
+        let function = function_from_chunk(chunk);
 
-        let stack_top = run_chunk_and_return_stack_top(chunk).unwrap();
+        let stack_top = run_chunk_and_return_stack_top(function).unwrap();
         let expected_value = Value::Bool(false);
         assert_eq!(stack_top, expected_value);
-    }
-
-    fn compile_source(source: String) -> Chunk {
-        let tokens = Scanner::new(source).scan();
-        let declarations = Parser::new(tokens).parse();
-        Compiler::new().compile(&declarations).unwrap()
     }
 
     #[test]
     fn test_variable_declaration() {
         let source = "var foo = 42;";
-        let chunk = compile_source(source.into());
-        let mut vm = Vm::new(chunk);
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
         let result = vm.run();
         assert!(result.is_ok());
 
@@ -545,8 +726,8 @@ mod tests {
             var foo = 2;
             var result = 2 + foo;
         ";
-        let chunk = compile_source(source.into());
-        let mut vm = Vm::new(chunk);
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
         let result = vm.run();
         assert!(result.is_ok());
 
@@ -560,8 +741,8 @@ mod tests {
             var foo = 42;
             foo = 1;
         ";
-        let chunk = compile_source(source.into());
-        let mut vm = Vm::new(chunk);
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
         let result = vm.run();
         assert!(result.is_ok());
 
@@ -579,8 +760,8 @@ mod tests {
                 global = global + 1;
             }
         ";
-        let chunk = compile_source(source.into());
-        let mut vm = Vm::new(chunk);
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
         let result = vm.run();
         assert!(result.is_ok());
 
@@ -597,12 +778,111 @@ mod tests {
                 global = global - 1;
             }
         ";
-        let chunk = compile_source(source.into());
-        let mut vm = Vm::new(chunk);
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
         let result = vm.run();
         assert!(result.is_ok());
 
         let expected_value = Some(&Value::Number(0.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_function_return_value() {
+        let source = "
+            var global = 0;
+            fun foo() {
+                return 1;
+            }
+            global = foo();
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_function_modify_global_variable() {
+        let source = "
+            var global = 0;
+            fun foo() {
+                global = 1;
+            }
+            foo();
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_can_call_functions_from_functions() {
+        let source = "
+            var global = 0;
+            fun foo() {
+                global = 1;
+            }
+
+            fun bar() {
+                foo();
+            }
+            bar();
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(1.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_function_with_parameters() {
+        let source = "
+            var global = 0;
+            fun sum(a, b) {
+                return a + b;
+            }
+
+            global = sum(2, 3);
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(5.0));
+        assert_eq!(vm.globals.get("global"), expected_value);
+    }
+
+    #[test]
+    fn test_recursive_function() {
+        let source = "
+            var global = 0;
+            fun factorial(n) {
+                if (n == 0) {
+                    return 1;
+                }
+                return n * factorial(n - 1);
+            }
+
+            global = factorial(6);
+        ";
+        let function = compile_source(source.into());
+        let mut vm = Vm::new(function);
+        let result = vm.run();
+        assert!(result.is_ok());
+
+        let expected_value = Some(&Value::Number(720.0));
         assert_eq!(vm.globals.get("global"), expected_value);
     }
 }

@@ -1434,4 +1434,22 @@ mod tests {
         let expected_error = CompilationError::UndefinedVariable("i".to_string(), line);
         assert_eq!(error, expected_error);
     }
+
+    #[test]
+    fn test_cannot_call_undefined_functions() {
+        let source = "sum();";
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 1;
+        let expected_error = CompilationError::UndefinedVariable("sum".to_string(), line);
+        assert_eq!(error, expected_error);
+    }
+
+    #[test]
+    fn test_cannot_return_from_top_level_code() {
+        let source = "return 10;";
+        let error = compile_source(source.to_string()).expect_err("Expected compilation error");
+        let line = 1;
+        let expected_error = CompilationError::ReturnStatementInTopLevelCode(line);
+        assert_eq!(error, expected_error);
+    }
 }

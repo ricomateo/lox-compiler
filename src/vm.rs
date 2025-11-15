@@ -52,10 +52,6 @@ impl Vm {
 
     pub fn run(&mut self) -> Result<(), VmError> {
         self.define_native_functions();
-        // Fix: borrow the frame inside the loop in short scopes right where it’s used.
-
-        // let frame_count = self.frames.len();
-        // let frame = self.frames.get_mut(frame_count - 1).unwrap();
 
         loop {
             if std::env::var("DEBUG_TRACE").is_ok() {
@@ -69,14 +65,6 @@ impl Vm {
                     .chunk
                     .instruction_at(frame.instruction_pointer)
             };
-
-            // let instruction = frame
-            //     .function
-            //     .chunk
-            //     .instruction_at(frame.instruction_pointer);
-
-            // frame.instruction_pointer += 1;
-
             {
                 let frame = self.frames.last_mut().unwrap();
                 frame.instruction_pointer += 1;
@@ -91,27 +79,16 @@ impl Vm {
                     };
                     self.stack.push(constant);
                 }
-                OpCode::Negate => {
-                    // let value = self.stack.pop().unwrap();
-                    // match value {
-                    //     Value::Number(value) => {
-                    //         let negated_value = Value::Number(-value);
-                    //         self.stack.push(negated_value);
-                    //     }
-                    //     _ => return Err(VmError::RuntimeError),
-                    // }
-
-                    match self.peek(0) {
-                        Some(Value::Number(_)) => {
-                            let value = self.stack.pop().unwrap();
-                            if let Value::Number(v) = value {
-                                let negated_value = Value::Number(-v);
-                                self.stack.push(negated_value);
-                            }
+                OpCode::Negate => match self.peek(0) {
+                    Some(Value::Number(_)) => {
+                        let value = self.stack.pop().unwrap();
+                        if let Value::Number(v) = value {
+                            let negated_value = Value::Number(-v);
+                            self.stack.push(negated_value);
                         }
-                        _ => return self.runtime_error("Operand must be a number."),
                     }
-                }
+                    _ => return self.runtime_error("Operand must be a number."),
+                },
                 OpCode::Return => {
                     // Pop return value
                     let result = self.stack.pop().unwrap();
@@ -127,17 +104,7 @@ impl Vm {
                     self.stack = self.stack[..new_stack_top].into();
                     self.stack.push(result);
                 }
-                // TODO: remove unwraps
                 OpCode::Add => {
-                    // let b = self.stack.pop().unwrap();
-                    // let a = self.stack.pop().unwrap();
-                    // match (a, b) {
-                    //     (Value::Number(a), Value::Number(b)) => {
-                    //         let result = Value::Number(a + b);
-                    //         self.stack.push(result);
-                    //     }
-                    //     _ => return Err(VmError::RuntimeError),
-                    // }
                     if self.stack_operands_are_numbers() {
                         self.binary_op_number(|a, b| a + b)?;
                     } else if self.stack_operands_are_strings() {
@@ -145,39 +112,12 @@ impl Vm {
                     }
                 }
                 OpCode::Subtract => {
-                    // let b = self.stack.pop().unwrap();
-                    // let a = self.stack.pop().unwrap();
-                    // match (a, b) {
-                    //     (Value::Number(a), Value::Number(b)) => {
-                    //         let result = Value::Number(a - b);
-                    //         self.stack.push(result);
-                    //     }
-                    //     _ => return Err(VmError::RuntimeError),
-                    // }
                     self.binary_op_number(|a, b| a - b)?;
                 }
                 OpCode::Multiply => {
-                    // let b = self.stack.pop().unwrap();
-                    // let a = self.stack.pop().unwrap();
-                    // match (a, b) {
-                    //     (Value::Number(a), Value::Number(b)) => {
-                    //         let result = Value::Number(a * b);
-                    //         self.stack.push(result);
-                    //     }
-                    //     _ => return Err(VmError::RuntimeError),
-                    // }
                     self.binary_op_number(|a, b| a * b)?;
                 }
                 OpCode::Divide => {
-                    // let b = self.stack.pop().unwrap();
-                    // let a = self.stack.pop().unwrap();
-                    // match (a, b) {
-                    //     (Value::Number(a), Value::Number(b)) => {
-                    //         let result = Value::Number(a / b);
-                    //         self.stack.push(result);
-                    //     }
-                    //     _ => return Err(VmError::RuntimeError),
-                    // }
                     self.binary_op_number(|a, b| a / b)?;
                 }
                 OpCode::Nil => {

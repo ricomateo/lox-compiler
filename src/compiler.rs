@@ -209,10 +209,9 @@ impl Compiler {
                 parameters,
                 body,
             }) => {
-                let mut compiler = Compiler::with_enclosing(self);
                 // Set the function name as an identifier so that it allows recursion without UndefinedVariableError
-                let constant_index = compiler.identifier_constant(name.clone());
-                compiler.emit_byte(OpCode::Constant(constant_index), compiler.current_line);
+                self.identifier_constant(name.clone());
+                let mut compiler = Compiler::with_enclosing(self);
 
                 compiler.begin_scope();
                 for param in parameters {

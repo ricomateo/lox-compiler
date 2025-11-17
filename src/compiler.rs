@@ -47,7 +47,13 @@ impl Compiler {
             current_line: 0,
             locals: vec![local],
             scope_depth: 0,
-            constant_identifiers: vec![String::from("input"), String::from("clock")],
+            // Native function identifiers
+            constant_identifiers: vec![
+                String::from("input"),
+                String::from("clock"),
+                String::from("random"),
+                String::from("int"),
+            ],
         }
     }
 

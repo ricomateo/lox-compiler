@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     chunk::{Chunk, OpCode},
-    native::clock_native,
+    native::{clock_native, input_native},
     value::{Function, NativeFunction, Value},
 };
 
@@ -48,6 +48,7 @@ impl Vm {
     /// Native function definitions go here
     fn define_native_functions(&mut self) {
         self.define_native("clock", clock_native);
+        self.define_native("input", input_native);
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
@@ -304,7 +305,7 @@ impl Vm {
                 let args = self.stack[arg_starting_index..].into();
                 let result: Value = native_function(arg_count, args);
                 // Discard the native function arguments from the stack
-                self.stack = self.stack[..arg_starting_index].into();
+                self.stack = self.stack[..arg_starting_index - 1].into();
                 self.stack.push(result);
                 Ok(())
             }

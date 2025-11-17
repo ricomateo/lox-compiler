@@ -47,7 +47,7 @@ impl Compiler {
             current_line: 0,
             locals: vec![local],
             scope_depth: 0,
-            constant_identifiers: Vec::new(),
+            constant_identifiers: vec![String::from("input"), String::from("clock")],
         }
     }
 

@@ -8,6 +8,7 @@ pub enum OpCode {
     False,
     Pop,
     Add,
+    Module,
     Subtract,
     Multiply,
     Divide,
@@ -97,6 +98,7 @@ impl Chunk {
             }
             OpCode::Negate => self.simple_instruction("OP_NEGATE", offset),
             OpCode::Add => self.simple_instruction("OP_ADD", offset),
+            OpCode::Module => self.simple_instruction("OP_MODULE", offset),
             OpCode::Subtract => self.simple_instruction("OP_SUBTRACT", offset),
             OpCode::Multiply => self.simple_instruction("OP_MULTIPLY", offset),
             OpCode::Divide => self.simple_instruction("OP_DIVIDE", offset),

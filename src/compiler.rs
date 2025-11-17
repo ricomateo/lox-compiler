@@ -484,6 +484,7 @@ impl Compiler {
 
         match operator.kind {
             TokenType::Plus => self.emit_byte(OpCode::Add, operator.line),
+            TokenType::Percentage => self.emit_byte(OpCode::Module, operator.line),
             TokenType::Minus => self.emit_byte(OpCode::Subtract, operator.line),
             TokenType::Star => self.emit_byte(OpCode::Multiply, operator.line),
             TokenType::Slash => self.emit_byte(OpCode::Divide, operator.line),

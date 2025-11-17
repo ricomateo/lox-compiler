@@ -578,6 +578,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
             ParseRule::new(Some(Parser::unary), Some(Parser::binary), Precedence::Term)
         }
         TokenType::Plus => ParseRule::new(None, Some(Parser::binary), Precedence::Term),
+        TokenType::Percentage => ParseRule::new(None, Some(Parser::binary), Precedence::Term),
         TokenType::Slash => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
         TokenType::Star => ParseRule::new(None, Some(Parser::binary), Precedence::Factor),
         TokenType::Number => ParseRule::new(Some(Parser::number), None, Precedence::None),

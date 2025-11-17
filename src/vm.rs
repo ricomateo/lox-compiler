@@ -111,6 +111,11 @@ impl Vm {
                         self.concatenate_strings()?;
                     }
                 }
+                OpCode::Module => {
+                    if self.stack_operands_are_numbers() {
+                        self.binary_op_number(|a, b| a % b)?;
+                    }
+                }
                 OpCode::Subtract => {
                     self.binary_op_number(|a, b| a - b)?;
                 }

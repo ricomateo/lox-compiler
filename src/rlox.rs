@@ -76,6 +76,7 @@ impl Rlox {
             eprintln!("Compilation error: {error}");
             return;
         };
+        log::debug!("Function: {:#?}", function);
 
         // Phase 4: Running
         log::info!("Running...");

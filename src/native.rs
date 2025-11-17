@@ -1,7 +1,7 @@
 use crate::value::Value;
 extern crate libc;
 use rand::Rng;
-use std::io;
+use std::io::{self, Write};
 
 // We need to call C code because there is no clock function in Rust
 unsafe extern "C" {
@@ -18,7 +18,8 @@ pub fn input_native(_arg_count: usize, args: Vec<Value>) -> Value {
     let Some(Value::String(prompt)) = args.get(0) else {
         panic!("Expected prompt argument at input() function");
     };
-    println!("{}", prompt);
+    print!("{}", prompt);
+    io::stdout().flush().expect("flush failed!");
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
     Value::String(input.trim().to_string())

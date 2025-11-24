@@ -23,6 +23,7 @@ pub enum TokenType {
     Semicolon,
     Slash,
     Star,
+    Percentage,
 
     // One or two character tokens
     Bang,
@@ -130,6 +131,7 @@ impl Scanner {
             '.' => self.make_token(TokenType::Dot),
             '-' => self.make_token(TokenType::Minus),
             '+' => self.make_token(TokenType::Plus),
+            '%' => self.make_token(TokenType::Percentage),
             '/' => self.make_token(TokenType::Slash),
             '*' => self.make_token(TokenType::Star),
             // One or two character tokens
@@ -390,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_single_char_tokens() {
-        let source = "(){}.,-+;/*";
+        let source = "(){}.,-+;/*%";
 
         let tokens = scan_all_tokens(source);
 
@@ -408,6 +410,7 @@ mod tests {
                 TokenType::Semicolon,
                 TokenType::Slash,
                 TokenType::Star,
+                TokenType::Percentage,
                 TokenType::Eof,
             ]
         );

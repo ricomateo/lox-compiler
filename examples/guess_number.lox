@@ -1,0 +1,24 @@
+fun main() {
+    print "======= GUESS THE NUMBER =======";
+    var number_to_guess = random(1, 50);
+    var number = 0;
+
+    while (number != number_to_guess) {
+        number = int(input("Enter your number: "));
+        if (number == number_to_guess) {
+            print "You guessed!";
+            return;
+        }
+        if (number > number_to_guess) {
+            print "The number is smaller";
+        }
+
+        if (number < number_to_guess) {
+            print "The number is greater";
+        }
+    }
+}
+
+
+
+main();

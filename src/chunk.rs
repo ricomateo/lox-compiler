@@ -127,8 +127,7 @@ impl Chunk {
             // TODO: Check jump instruction implementation
             OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset, -1),
             OpCode::Closure(constant_index) => {
-                // TODO: Implement closure disassembly
-                return 0;
+                self.constant_instruction("OP_CONSTANT", offset, *constant_index)
             }
         }
     }
@@ -159,8 +158,11 @@ impl Chunk {
             Value::NativeFunction(_) => {
                 println!("'<native fn>'")
             }
-            Value::Closure(f) => {
-                // TODO: Implement closure printing
+            Value::Closure(c) => {
+                println!(
+                    "{:<16} {:>4} '<closure {}>'",
+                    name, constant_index, c.function.name
+                )
             }
         }
 

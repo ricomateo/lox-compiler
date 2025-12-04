@@ -18,7 +18,7 @@ pub struct Vm {
 
 #[derive(Debug)]
 pub struct CallFrame {
-    pub function: Function,
+    pub closure: Closure,
     instruction_pointer: usize,
     // Points to the VM's value stack at the first slot this function can use
     // TODO: consider using a reference to the stack (like &vm.stack[slot_index..])
@@ -28,7 +28,7 @@ pub struct CallFrame {
 impl Vm {
     pub fn new(function: Function) -> Self {
         let frame = CallFrame {
-            function,
+            closure: Closure { function },
             instruction_pointer: 0,
             slot_index: 0,
         };
@@ -64,6 +64,7 @@ impl Vm {
             let instruction = {
                 let frame = self.frames.last().unwrap();
                 frame
+                    .closure
                     .function
                     .chunk
                     .instruction_at(frame.instruction_pointer)
@@ -78,7 +79,7 @@ impl Vm {
                     // let constant = frame.function.chunk.constant_at(constant_index);
                     let constant = {
                         let frame = self.frames.last().unwrap();
-                        frame.function.chunk.constant_at(constant_index)
+                        frame.closure.function.chunk.constant_at(constant_index)
                     };
                     self.stack.push(constant);
                 }
@@ -232,7 +233,7 @@ impl Vm {
                     // Load the function from the constant table
                     let function_value = {
                         let frame = self.frames.last().unwrap();
-                        frame.function.chunk.constant_at(constant_index)
+                        frame.closure.function.chunk.constant_at(constant_index)
                     };
 
                     match function_value {
@@ -251,7 +252,7 @@ impl Vm {
     }
 
     fn current_chunk(&mut self) -> Chunk {
-        self.frames.last().unwrap().function.chunk.clone()
+        self.frames.last().unwrap().closure.function.chunk.clone()
     }
 
     fn get_variable_name(&mut self, constant_index: usize) -> Result<String, VmError> {
@@ -298,11 +299,11 @@ impl Vm {
         }
     }
 
-    fn call(&mut self, function: Function, arg_count: usize) -> Result<(), VmError> {
-        if arg_count != function.arity {
+    fn call(&mut self, closure: Closure, arg_count: usize) -> Result<(), VmError> {
+        if arg_count != closure.function.arity {
             self.runtime_error(&format!(
                 "Expected {} arguments but got {}.",
-                function.arity, arg_count,
+                closure.function.arity, arg_count,
             ))?;
         }
         if self.frames.len() == FRAMES_MAX {
@@ -312,7 +313,7 @@ impl Vm {
         let stack_top = self.stack.len();
         let slot_index = stack_top - arg_count;
         let frame = CallFrame {
-            function,
+            closure,
             instruction_pointer: 0,
             slot_index,
         };
@@ -322,7 +323,7 @@ impl Vm {
 
     fn call_value(&mut self, callee: Value, arg_count: usize) -> Result<(), VmError> {
         match callee {
-            Value::Function(function) => self.call(function, arg_count),
+            Value::Closure(closure) => self.call(closure, arg_count),
             Value::NativeFunction(native_function) => {
                 let arg_starting_index = self.stack.len() - arg_count;
                 let args = self.stack[arg_starting_index..].into();
@@ -341,7 +342,7 @@ impl Vm {
 
         // Print the stack trace from top to bottom
         for frame in self.frames.iter().rev() {
-            let function = &frame.function;
+            let function = &frame.closure.function;
             let line = function.chunk.line_at(frame.instruction_pointer);
             if function.name == "" {
                 eprint!("[line {line}] in script");
@@ -447,6 +448,7 @@ impl Vm {
         println!("");
         let frame = self.frames.last().unwrap();
         frame
+            .closure
             .function
             .chunk
             .disassemble_instruction(frame.instruction_pointer);

@@ -30,6 +30,7 @@ pub enum OpCode {
     JumpIfFalse(usize),
     Loop(usize),
     Call(usize),
+    Closure,
     Return,
 }
 
@@ -125,6 +126,10 @@ impl Chunk {
             OpCode::Call(arg_count) => self.byte_instruction("OP_CALL", offset, *arg_count),
             // TODO: Check jump instruction implementation
             OpCode::Loop(loop_offset) => self.jump_instruction("OP_LOOP", *loop_offset, offset, -1),
+            OpCode::Closure => {
+                // TODO: Implement closure disassembly
+                return 0;
+            }
         }
     }
 

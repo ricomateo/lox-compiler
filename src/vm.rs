@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     chunk::{Chunk, OpCode},
     native::{clock_native, input_native, int_native, random_native},
-    value::{Function, NativeFunction, Value},
+    value::{Closure, Function, NativeFunction, Value},
 };
 
 const STACK_MAX: usize = 256;
@@ -229,7 +229,22 @@ impl Vm {
                     self.call_value(callee, arg_count)?;
                 }
                 OpCode::Closure(constant_index) => {
-                    // TODO: Implement closure opcode execution
+                    // Load the function from the constant table
+                    let function_value = {
+                        let frame = self.frames.last().unwrap();
+                        frame.function.chunk.constant_at(constant_index)
+                    };
+
+                    match function_value {
+                        Value::Function(function) => {
+                            // Wrap the function in a closure
+                            let closure = Closure { function };
+                            self.stack.push(Value::Closure(closure));
+                        }
+                        _ => {
+                            return self.runtime_error("Expected a function for closure.");
+                        }
+                    }
                 }
             }
         }

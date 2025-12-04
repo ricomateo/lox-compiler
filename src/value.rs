@@ -8,7 +8,7 @@ pub enum Value {
     Nil,
     String(String),
     Function(Function),
-    Closure(Function),
+    Closure(Closure),
     NativeFunction(NativeFunction),
 }
 

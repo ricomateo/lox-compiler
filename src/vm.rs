@@ -262,6 +262,9 @@ impl Vm {
             Value::NativeFunction(_) => {
                 println!("<native fn>");
             }
+            Value::Closure(f) => {
+                // TODO: Implement closure printing
+            }
         }
     }
 
@@ -418,6 +421,9 @@ impl Vm {
                 Value::String(string) => print!("[ \"{string}\" ]"),
                 Value::Function(function) => print!("[ <fn {}> ]", function.name),
                 Value::NativeFunction(_) => print!("[ <native fn> ]",),
+                Value::Closure(f) => {
+                    // TODO: Implement closure printing
+                }
             }
         }
         println!("");

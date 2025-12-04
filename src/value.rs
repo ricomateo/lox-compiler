@@ -8,6 +8,7 @@ pub enum Value {
     Nil,
     String(String),
     Function(Function),
+    Closure(Function),
     NativeFunction(NativeFunction),
 }
 
@@ -16,6 +17,11 @@ pub struct Function {
     pub arity: usize,
     pub chunk: Chunk,
     pub name: String,
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct Closure {
+    pub function: Function,
 }
 
 /// A native function can be represented as a Rust function that takes:

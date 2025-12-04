@@ -154,6 +154,9 @@ impl Chunk {
             Value::NativeFunction(_) => {
                 println!("'<native fn>'")
             }
+            Value::Closure(f) => {
+                // TODO: Implement closure printing
+            }
         }
 
         // In the book, this function returns offset + 2 because the constant index is stored separately from Opcode::Constant

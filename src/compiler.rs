@@ -229,8 +229,8 @@ impl Compiler {
                 let mut function = compiler.function;
                 function.name = name.clone();
                 function.arity = parameters.len();
-                let constant_index = self.make_constant(Value::Function(function));
-                self.emit_byte(OpCode::Constant(constant_index), self.current_line);
+
+                self.emit_closure(function);
 
                 // TODO: check this
                 let constant_index = self.identifier_constant(name.clone());
@@ -397,6 +397,11 @@ impl Compiler {
     }
 
     // ---------- Helpers ----------
+
+    fn emit_closure(&mut self, function: Function) {
+        let constant_index = self.make_constant(Value::Function(function));
+        self.emit_byte(OpCode::Closure(constant_index), self.current_line);
+    }
 
     fn current_chunk(&mut self) -> &mut Chunk {
         &mut self.function.chunk

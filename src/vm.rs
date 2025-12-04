@@ -228,7 +228,7 @@ impl Vm {
                     let callee = self.peek(arg_count).unwrap().clone();
                     self.call_value(callee, arg_count)?;
                 }
-                OpCode::Closure => {
+                OpCode::Closure(constant_index) => {
                     // TODO: Implement closure opcode execution
                 }
             }
